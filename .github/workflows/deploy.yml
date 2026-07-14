@@ -1,0 +1,49 @@
+name: 🚀 Deploy website on push
+
+on:
+  push:
+    branches:
+      # 确保这是你正在使用的分支名称
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  web-deploy:
+    name: 🎉 Deploy
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout 🛎️
+        uses: actions/checkout@v7
+        with:
+          # 获取完整历史，供部署动作生成稳定提交
+          fetch-depth: 0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: 24
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      # 部署前先跑测试作为门禁，坏构建不发布
+      - name: Test
+        run: npm run test
+
+      - name: Build website
+        run: npm run build
+
+      - name: Deploy
+        uses: JamesIves/github-pages-deploy-action@v4
+        with:
+          # 这是站点部署到的分支名称
+          branch: gh-pages
+          # Vite 构建产物目录
+          folder: dist
+          # 不转发 head commit message——任意提交正文中的 shell 元字符
+          # （引号、$、!、反引号）会破坏动作内部的 git commit -m 调用；
+          # 动作默认的静态提交信息足矣，规范历史保留在 main。

@@ -1,0 +1,54 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512" role="img" aria-label="逐光 · 夸父逐日">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#221033"/>
+      <stop offset=".48" stop-color="#5a2438"/>
+      <stop offset="1" stop-color="#bf5528"/>
+    </linearGradient>
+    <radialGradient id="sun" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#fff7e4"/>
+      <stop offset=".38" stop-color="#ffd884"/>
+      <stop offset=".7" stop-color="#ffb757" stop-opacity=".5"/>
+      <stop offset="1" stop-color="#ffb757" stop-opacity="0"/>
+    </radialGradient>
+    <radialGradient id="halo" cx=".5" cy=".5" r=".5">
+      <stop offset="0" stop-color="#ffd68a" stop-opacity=".55"/>
+      <stop offset="1" stop-color="#ffd68a" stop-opacity="0"/>
+    </radialGradient>
+    <clipPath id="round"><rect width="512" height="512" rx="116"/></clipPath>
+  </defs>
+  <g clip-path="url(#round)">
+    <rect width="512" height="512" fill="url(#sky)"/>
+    <!-- 日冕光晕 -->
+    <rect x="150" y="10" width="440" height="440" fill="url(#halo)"/>
+    <!-- 斜射光束 -->
+    <g fill="#ffe1a4" opacity=".12">
+      <polygon points="352,150 372,150 300,512 250,512"/>
+      <polygon points="316,150 330,150 150,512 100,512"/>
+      <polygon points="384,150 400,150 372,512 330,512"/>
+    </g>
+    <!-- 被追之日 -->
+    <circle cx="360" cy="196" r="150" fill="url(#sun)"/>
+    <circle cx="360" cy="196" r="66" fill="#fff4da"/>
+    <!-- 焦土地平线 -->
+    <path d="M0,404 Q140,368 288,398 T512,392 L512,512 L0,512 Z" fill="#160a15"/>
+    <path d="M0,414 Q160,386 300,410 T512,404 L512,512 L0,512 Z" fill="#0c0610"/>
+    <!-- 夸父·持杖疾奔，杖指落日 -->
+    <g stroke="#08050d" stroke-width="15" stroke-linecap="round" stroke-linejoin="round" fill="#08050d">
+      <!-- 手杖·斜指落日 -->
+      <line x1="118" y1="368" x2="220" y2="286" stroke-width="8"/>
+      <!-- 躯干（前倾） -->
+      <line x1="150" y1="320" x2="166" y2="362"/>
+      <!-- 前臂·握杖前伸 -->
+      <line x1="158" y1="328" x2="192" y2="306"/>
+      <!-- 后臂·握杖 -->
+      <line x1="152" y1="330" x2="138" y2="354"/>
+      <!-- 前腿 -->
+      <polyline points="166,362 190,386 196,416" fill="none"/>
+      <!-- 后腿·蹬地 -->
+      <polyline points="162,362 146,394 132,412" fill="none"/>
+      <!-- 头 -->
+      <circle cx="150" cy="302" r="16" stroke="none"/>
+    </g>
+  </g>
+</svg>
