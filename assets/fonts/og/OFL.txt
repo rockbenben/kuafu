@@ -1,0 +1,10 @@
+本目录下的 *.subset.ttf 取自 Google Fonts 的 Noto Serif 家族
+(Noto Serif / Noto Serif SC / Noto Serif TC / Noto Serif JP / Noto Serif KR)，
+仅裁剪为 og 卡片所需的字形，未作其他修改。
+
+Copyright 2012-2023 The Noto Project Authors (https://github.com/notofonts)
+
+以 SIL Open Font License 1.1 授权，全文见：
+https://scripts.sil.org/OFL
+
+这些字体仅用于构建期生成分享卡图，不随游戏下发给浏览器。

@@ -9,11 +9,14 @@
   },
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
+    "build": "tsc && vite build && node scripts/prerender.mjs",
     "preview": "vite preview",
-    "test": "vitest run"
+    "test": "vitest run",
+    "fonts": "node scripts/subset-fonts.mjs",
+    "og": "node scripts/og.mjs"
   },
   "devDependencies": {
+    "@napi-rs/canvas": "^1.0.2",
     "@types/node": "^26.1.1",
     "typescript": "^5.5.0",
     "vite": "^5.4.0",

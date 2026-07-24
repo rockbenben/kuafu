@@ -7,7 +7,11 @@
     "noUnusedLocals": true,
     "noEmit": true,
     "types": ["vite/client"],
-    "lib": ["ES2022", "DOM"]
+    "lib": ["ES2022", "DOM"],
+    // 预渲染 / og 生成是 node 脚本，用纯 JS 写（不经 vite 编译）。
+    // 打开 allowJs 让测试能直接 import 并由 TS 从实现推断类型，
+    // 省掉一份易与实现漂移的 .d.mts。
+    "allowJs": true
   },
-  "include": ["src", "tests"]
+  "include": ["src", "tests", "scripts"]
 }

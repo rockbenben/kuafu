@@ -68,12 +68,23 @@ const PATHS: Record<SingleKey, string> = {
 const MAX_RUN_FRAMES = 8;
 const MAX_ENDINGS = 10; // ending-art.webp + ending-art-2..10（连续无缺口，避免多余 404）
 
+/**
+ * 美术资源的基址。
+ *
+ * 不能直接用 import.meta.env.BASE_URL：base 为相对路径时它被编译成字面量
+ * './'，在预渲染出的 /ja/ 等子页上会解析成 /ja/assets/... 而**全部 404**；
+ * 而 loadOne 吞掉 onerror，页面只会静默退化成占位矢量图，不报任何错。
+ * 子页由 scripts/prerender.mjs 注入正确的深度前缀（与 HTML 重写同一个真源）。
+ */
+export const ASSET_BASE =
+  (globalThis as { __ASSET_BASE__?: string }).__ASSET_BASE__ ?? import.meta.env.BASE_URL;
+
 function loadOne(path: string): Promise<HTMLImageElement | null> {
   return new Promise(resolve => {
     const img = new Image();
     img.onload = () => resolve(img);
     img.onerror = () => resolve(null);
-    img.src = `${import.meta.env.BASE_URL}${path}`;
+    img.src = `${ASSET_BASE}${path}`;
   });
 }
 
