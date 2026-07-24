@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { rankKeyFor, t, setScript } from '../src/render/strings';
+import { rankKeyFor, t, setLocale } from '../src/render/strings';
 
 describe('rankKeyFor 称号进阶', () => {
   it('随功业分数逐级晋升', () => {
@@ -14,10 +14,10 @@ describe('rankKeyFor 称号进阶', () => {
     expect(rankKeyFor(999999)).toBe('rank.5');
   });
   it('每个称号键都有简繁文案', () => {
-    setScript('hans');
-    for (let i = 0; i <= 5; i++) expect(t(`rank.${i}`)).not.toBe(`rank.${i}`);
-    setScript('hant');
+    setLocale('zh-Hans');
+    for (let i = 0; i <= 5; i++) expect(t(rankKeyFor([0, 100, 300, 700, 1500, 3000][i]))).not.toMatch(/^rank\./);
+    setLocale('zh-Hant');
     expect(t('rank.5')).toBe('與日齊光');
-    setScript('hans');
+    setLocale('zh-Hans');
   });
 });

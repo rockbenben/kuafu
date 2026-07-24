@@ -1,3 +1,4 @@
+import { t, type StringKey } from '../render/strings';
 import type { InputManager } from './input';
 
 // 触屏控制：绑定 index.html 的 HTML 覆盖按钮（像素级命中、随屏缩放、避让安全区），
@@ -11,6 +12,7 @@ const HOLD: Record<string, string> = {
 
 export class TouchControls {
   private root = document.getElementById('tc');
+  private visible: boolean | null = null;   // null = 尚未同步过 aria-hidden
   private ultBtn = document.getElementById('tc-ult');
   private touchHeld = new Set<string>(); // 仅记录"由触屏按下、尚未松开"的长按键
 
@@ -53,6 +55,14 @@ export class TouchControls {
    *  touchHeld 恒空，此分支等同 no-op）。 */
   setVisible(on: boolean) {
     this.root?.classList.toggle('on', on);
+    // 同步 aria-hidden：容器若一直是 aria-hidden，applyLocale 写进去的
+    // aria-label 就锁在一棵对辅助技术不可见的子树里，等于白写。
+    // 本方法由主循环每帧调用，故只在真正变化时写——无条件 setAttribute 即便
+    // 值不变也会产生 MutationRecord 并让无障碍树失效，读屏会被反复打断。
+    if (this.visible !== on) {
+      this.visible = on;
+      this.root?.setAttribute('aria-hidden', on ? 'false' : 'true');
+    }
     if (!on && this.touchHeld.size) {
       for (const code of this.touchHeld) this.im.keyUp(code);
       this.touchHeld.clear();
@@ -61,4 +71,28 @@ export class TouchControls {
 
   /** 神力满时显示"跨"大招键并脉动。 */
   setUltReady(ready: boolean) { this.ultBtn?.classList.toggle('ready', ready); }
+
+  /**
+   * 按当前语种刷新按钮文字与 aria-label。
+   *
+   * 帮助页的触屏说明（help.*.touch）是拿按钮上的字来指认按钮的，按钮若
+   * 恒为中文，外语玩家读到的 "Leap / Dash" 就对不上屏幕上的「跃 / 冲」，
+   * 等于没有说明；读屏用户则在任何语种下都只拿到中文标签。
+   * 切语言后必须重调。
+   */
+  applyLocale() {
+    const map: [string, StringKey, StringKey][] = [
+      ['tc-left', 'btn.back', 'btn.back.aria'],
+      ['tc-right', 'btn.fwd', 'btn.fwd.aria'],
+      ['tc-dash', 'btn.dash', 'btn.dash.aria'],
+      ['tc-jump', 'btn.jump', 'btn.jump.aria'],
+      ['tc-ult', 'btn.ult', 'btn.ult.aria'],
+    ];
+    for (const [id, label, aria] of map) {
+      const el = document.getElementById(id);
+      if (!el) continue;
+      el.textContent = t(label);
+      el.setAttribute('aria-label', t(aria));
+    }
+  }
 }

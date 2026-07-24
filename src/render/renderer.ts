@@ -7,7 +7,8 @@ import { VIEW_W, WORLD_H, PLAYER_H } from '../game/constants';
 import { EMPTY_ASSETS, type Assets } from './assets';
 import type { CameraFX } from './fx';
 import type { Popups } from './popups';
-import { FONT_HUD } from './strings';
+import { fontHud } from './strings';
+import { uiLetterbox, clientToWorld } from './viewport';
 
 const RUN_PX_PER_FRAME = 22; // 每前进这么多像素切一帧奔跑动画（距离驱动，脚不打滑）
 const SPRITE_CHAR_PX = 220;  // 玩家素材"头到脚"归一高度（与 art/process.py CHAR_PX 一致）
@@ -501,7 +502,7 @@ export class Renderer {
     ctx.fillRect(0, 0, VW, WORLD_H);
 
     // 浮动反馈文字（拾光/续力/击杀）——在暗角之上，世界坐标
-    if (popups) popups.draw(ctx, cam, `16px ${FONT_HUD}`);
+    if (popups) popups.draw(ctx, cam, `16px ${fontHud()}`);
 
     // 死亡结局图（弃杖化邓林，多种随机）覆盖全屏 + 压暗以承托文字；缺图则仅压暗定格画面
     if (game.state === 'dead') {
@@ -527,13 +528,30 @@ export class Renderer {
 
   get viewWidth() { return this.vw; }
 
+  /**
+   * 把浏览器视口坐标（clientX/clientY，CSS 像素）换算到 UI 绘制所用的世界坐标。
+   *
+   * renderUI 以「包含式」缩放居中，画布常有上下或左右留黑；命中判定若直接用
+   * 屏幕比例，就会与实际画出的位置错位——信箱化越严重错得越多。凡是要对
+   * renderUI 里画出来的东西做命中的，都必须先过这里。
+   *
+   * 算式在 viewport.ts，与 renderUI 的绘制共用同一份实现。
+   */
+  screenToWorld(clientX: number, clientY: number): { x: number; y: number } {
+    const { canvas } = this;
+    return clientToWorld({
+      clientX, clientY,
+      rect: canvas.getBoundingClientRect(),
+      canvasW: canvas.width, canvasH: canvas.height, vw: this.vw,
+    });
+  }
+
   renderUI(cb: (ctx: CanvasRenderingContext2D) => void) {
     // HUD 用"包含式"适配（min 缩放，不裁不抖），保证顶/底 HUD 始终完整可见；
     // 超宽屏世界虽放大裁顶，但 HUD 仍完整（仅两侧略内收，读作留白）。
     const { ctx, canvas } = this;
-    const VW = this.vw;
-    const scale = Math.min(canvas.width / VW, canvas.height / WORLD_H);
-    ctx.setTransform(scale, 0, 0, scale, (canvas.width - VW * scale) / 2, (canvas.height - WORLD_H * scale) / 2);
+    const { scale, offX, offY } = uiLetterbox(canvas.width, canvas.height, this.vw);
+    ctx.setTransform(scale, 0, 0, scale, offX, offY);
     cb(ctx);
   }
 }

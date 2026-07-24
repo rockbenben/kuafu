@@ -4,10 +4,15 @@ import { TouchControls } from '../src/engine/touch';
 // 轻量 DOM 桩：按钮记录事件处理器，可手动触发 pointer 事件
 function fakeEl() {
   const handlers: Record<string, (e: unknown) => void> = {};
+  const attrs: Record<string, string> = {};
   return {
     handlers,
+    attrs,
+    textContent: '',
     classList: { toggle: vi.fn() },
     addEventListener(type: string, cb: (e: unknown) => void) { handlers[type] = cb; },
+    setAttribute(k: string, v: string) { attrs[k] = v; },
+    getAttribute(k: string) { return attrs[k] ?? null; },
     setPointerCapture() { /* noop */ },
     fire(type: string, e: Record<string, unknown> = {}) {
       handlers[type]?.({ preventDefault() {}, pointerId: 1, ...e });
@@ -112,5 +117,36 @@ describe('TouchControls（HTML 覆盖按钮）', () => {
     new TouchControls(im as never, onFirst);
     els['tc-left'].fire('pointerdown');
     expect(onFirst).toHaveBeenCalled();
+  });
+});
+
+describe('触屏控件的无障碍与本地化', () => {
+  function mount() {
+    const els: Record<string, ReturnType<typeof fakeEl>> = {
+      'tc': fakeEl(), 'tc-left': fakeEl(), 'tc-right': fakeEl(),
+      'tc-jump': fakeEl(), 'tc-dash': fakeEl(), 'tc-ult': fakeEl(),
+    };
+    vi.stubGlobal('document', { getElementById: (id: string) => els[id] ?? null });
+    return els;
+  }
+  afterEach(() => { vi.unstubAllGlobals(); });
+
+  it('显示时取消 aria-hidden——否则按钮标签锁在不可见子树里，读屏取不到', () => {
+    const els = mount();
+    const tc = new TouchControls({ keyDown() {}, keyUp() {} } as never, () => {});
+    tc.setVisible(true);
+    expect(els['tc'].getAttribute('aria-hidden')).toBe('false');
+    tc.setVisible(false);
+    expect(els['tc'].getAttribute('aria-hidden')).toBe('true');
+  });
+
+  it('applyLocale 给五个按钮都填上文字与 aria-label', () => {
+    const els = mount();
+    const tc = new TouchControls({ keyDown() {}, keyUp() {} } as never, () => {});
+    tc.applyLocale();
+    for (const id of ['tc-left', 'tc-right', 'tc-dash', 'tc-jump', 'tc-ult']) {
+      expect(els[id].textContent, id).not.toBe('');
+      expect(els[id].getAttribute('aria-label'), id).toBeTruthy();
+    }
   });
 });

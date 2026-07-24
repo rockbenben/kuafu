@@ -1,10 +1,15 @@
-import { t, rankKeyFor, FONT_KAI } from './render/strings';
+import { t, rankKeyFor, fontKai } from './render/strings';
 
 /** 分享成绩：生成成绩卡图，移动端走系统分享(含图)，桌面端复制文案+下载卡片。 */
 export async function shareScore(
   distanceM: number, score: number, best: number, endingImg: HTMLImageElement | null,
 ): Promise<'shared' | 'copied' | 'failed'> {
-  const url = location.href.split('#')[0];
+  // 剥掉 ?lang=：那是发送方自己的语种覆盖，不该跟着链接强加给每一位接收者
+  // （它在 pickLocale 里优先级最高，会盖过对方的浏览器语言与亲选偏好）。
+  const shareUrl = new URL(location.href);
+  shareUrl.hash = '';
+  shareUrl.searchParams.delete('lang');
+  const url = shareUrl.toString().replace(/\?$/, '');
   const rank = t(rankKeyFor(score));
   const text = `${t('share.title')}｜${t('title.rank')}「${rank}」· ${t('hud.score')} ${score}（${t('hud.dist2')} ${distanceM} ${t('hud.dist')}）｜${t('share.tagline')}`;
 
@@ -26,21 +31,21 @@ export async function shareScore(
     }
     x.textAlign = 'center';
     x.fillStyle = '#f7ecd8';
-    x.font = `60px ${FONT_KAI}`;
+    x.font = `60px ${fontKai()}`;
     x.fillText(t('share.title'), W / 2, 90);
-    x.font = `120px ${FONT_KAI}`;
+    x.font = `120px ${fontKai()}`;
     x.fillText(String(score), W / 2, 210);
     // 称号：分享卡的身份标记
-    x.font = `44px ${FONT_KAI}`;
+    x.font = `44px ${fontKai()}`;
     x.fillStyle = 'rgba(255,220,150,0.95)';
     x.fillText(`「${rank}」`, W / 2, 300);
-    x.font = `36px ${FONT_KAI}`;
+    x.font = `36px ${fontKai()}`;
     x.fillStyle = 'rgba(255,245,230,0.92)';
     x.fillText(`${t('hud.dist2')} ${distanceM} ${t('hud.dist')}　·　${t('death.best')} ${best}`, W / 2, 400);
-    x.font = `32px ${FONT_KAI}`;
+    x.font = `32px ${fontKai()}`;
     x.fillStyle = 'rgba(255,220,150,0.95)';
     x.fillText(t('share.tagline'), W / 2, 470);
-    x.font = `24px ${FONT_KAI}`;
+    x.font = `24px ${fontKai()}`;
     x.fillStyle = 'rgba(255,245,230,0.6)';
     x.fillText(url, W / 2, 560);
     const blob: Blob | null = await new Promise(res => c.toBlob(res, 'image/png'));
