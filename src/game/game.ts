@@ -174,7 +174,7 @@ export class Game {
     if (this.player.justJumped) this.hasJumped = true;
     if (this.player.justDashed) this.hasDashed = true;
 
-    this.enemies.ensure(this.cameraX + VIEW_W * 2, this.score.distanceM, this.level.solids);
+    this.enemies.ensure(this.cameraX + VIEW_W * 2, this.score.distanceM, this.level.solids, this.level.spikes);
     this.enemies.update(dt, this.level.solids);
     this.enemies.prune(this.darkness.x - 200);
 

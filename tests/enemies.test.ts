@@ -1,6 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { Enemies } from '../src/game/enemies';
-import { mulberry32 } from '../src/game/generator';
+import { Level } from '../src/game/level';
+import { ChunkStream, mulberry32 } from '../src/game/generator';
+import { aabbOverlap } from '../src/game/collision';
 import { TILE } from '../src/game/constants';
 import type { Rect } from '../src/game/types';
 
@@ -59,6 +61,60 @@ describe('Enemies.ensure', () => {
     en.ensure(1400, 500, [narrow]);
     expect(en.list.length).toBe(1);
     expect(en.list[0].kind).toBe('flyer');
+  });
+});
+
+describe('小怪不得埋进地形', () => {
+  // 玩家进不去的地方就不该有怪：刺行底下那层地面不是"地表"，屋檐压顶的夹层也不是。
+  it('walker 的巡逻带绝不与尖刺相交', () => {
+    let walkers = 0;
+    for (let seed = 1; seed <= 25; seed++) {
+      const lv = new Level(new ChunkStream(mulberry32(seed)));
+      lv.ensure(30000, 900);
+      const en = new Enemies(mulberry32(seed * 7 + 1));
+      en.ensure(30000, 900, lv.solids, lv.spikes);
+      for (const e of en.list) {
+        if (e.kind !== 'walker') continue;
+        walkers++;
+        const patrol: Rect = { x: e.minX, y: e.y, w: e.maxX - e.minX + e.w, h: e.h };
+        const buried = lv.spikes.find(s => aabbOverlap(patrol, s));
+        expect(buried, `seed ${seed}: walker@(${e.x.toFixed(0)},${e.y.toFixed(0)}) 埋在尖刺里`)
+          .toBeUndefined();
+      }
+    }
+    expect(walkers).toBeGreaterThan(100); // 确保样本量足够，不是"零个怪所以全过"
+  });
+
+  it('walker 头顶留有实体空隙（不是站在夹层/岩层里）', () => {
+    for (let seed = 1; seed <= 15; seed++) {
+      const lv = new Level(new ChunkStream(mulberry32(seed)));
+      lv.ensure(20000, 900);
+      const en = new Enemies(mulberry32(seed * 7 + 1));
+      en.ensure(20000, 900, lv.solids, lv.spikes);
+      for (const e of en.list) {
+        if (e.kind !== 'walker') continue;
+        const body: Rect = { x: e.minX, y: e.y, w: e.maxX - e.minX + e.w, h: e.h };
+        const inside = lv.solids.find(s => aabbOverlap(body, s));
+        expect(inside, `seed ${seed}: walker@(${e.x.toFixed(0)},${e.y.toFixed(0)}) 嵌在实体里`)
+          .toBeUndefined();
+      }
+    }
+  });
+
+  it('flyer 的整条摆动带都在空中', () => {
+    for (let seed = 1; seed <= 25; seed++) {
+      const lv = new Level(new ChunkStream(mulberry32(seed)));
+      lv.ensure(30000, 900);
+      const en = new Enemies(mulberry32(seed * 7 + 1));
+      en.ensure(30000, 900, lv.solids, lv.spikes);
+      for (const e of en.list) {
+        if (e.kind !== 'flyer') continue;
+        const swept: Rect = { x: e.x, y: e.baseY - 26, w: e.w, h: e.h + 52 };
+        const inside = lv.solids.find(s => aabbOverlap(swept, s));
+        expect(inside, `seed ${seed}: flyer@(${e.x.toFixed(0)},${e.baseY.toFixed(0)}) 嵌在山体里`)
+          .toBeUndefined();
+      }
+    }
   });
 });
 

@@ -29,6 +29,12 @@ export function difficultyForDistance(m: number): { min: number; max: number } {
   return { min: 3, max: 5 };
 }
 
+/**
+ * 接缝处允许的最大爬升格数。玩家满速起跳只能升约 98.5px（≈3 格），且接缝处没有
+ * 助跑余量，所以 3 格是够不着的——放宽只放宽"往下掉"，往上永远卡死在 2 格。
+ */
+export const MAX_SEAM_CLIMB = 2;
+
 export class ChunkStream {
   private rng: () => number;
   private lastId = '';
@@ -39,8 +45,10 @@ export class ChunkStream {
 
   next(distanceM: number, prevExitY: number): ChunkDef {
     const { min, max } = difficultyForDistance(distanceM);
-    const fits = (c: ChunkDef, maxDy: number, dmin: number, dmax: number) =>
-      c.difficulty >= dmin && c.difficulty <= dmax && Math.abs(c.entryY - prevExitY) <= maxDy;
+    const fits = (c: ChunkDef, maxDrop: number, dmin: number, dmax: number) =>
+      c.difficulty >= dmin && c.difficulty <= dmax &&
+      prevExitY - c.entryY <= MAX_SEAM_CLIMB &&   // 往上：跳得上去
+      c.entryY - prevExitY <= maxDrop;            // 往下：掉下去总是安全的
 
     let pool = CHUNKS.filter(c => fits(c, 3, min, max));
     if (!pool.length) pool = CHUNKS.filter(c => fits(c, 3, 1, 5));
