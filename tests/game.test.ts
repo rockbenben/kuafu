@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../src/game/game';
 import { dailySeed } from '../src/game/generator';
-import { DT, KILL_BONUS } from '../src/game/constants';
+import { DT, KILL_BONUS, MAX_FALL } from '../src/game/constants';
 import type { InputState } from '../src/game/types';
 import type { Enemy } from '../src/game/enemies';
 
@@ -139,6 +139,43 @@ describe('Game', () => {
     expect(g.justKilledEnemy).toBe(true);
     expect(g.score.bonus).toBe(bonusBefore + KILL_BONUS);
     expect(g.player.vel.y).toBeLessThan(0); // 击杀后向上回弹
+  });
+
+  it('高速下坠踩踏同样算击杀：单帧位移大于怪身高也不漏踩', () => {
+    const g = new Game(1);
+    g.start();
+    // 以最大下坠速度（900px/s，每帧 15px）砸向一只矮 walker（h=20）。
+    // 旧判据「脚底在怪头 0.6 格内」只有 12px 窗口，一帧就跨过去了，玩家明明踩
+    // 中却被判撞死——这条守的就是那个漏洞。
+    g.player.pos.y = 120;
+    g.player.vel.y = MAX_FALL;
+    g.player.onGround = false;
+    const px = g.player.pos.x;
+    g.enemies.list.push({
+      kind: 'walker', x: px, y: 150, w: 24, h: 20,
+      dir: 1, baseY: 0, phase: 0, alive: true, minX: px - 50, maxX: px + 50,
+    } as Enemy);
+    g.update(IDLE, DT);
+    expect(g.state).toBe('playing');
+    expect(g.justKilledEnemy).toBe(true);
+    expect(g.player.vel.y).toBeLessThan(0);
+  });
+
+  it('侧面撞上小怪仍然致死：踩踏放宽没有把撞死也一并赦免', () => {
+    const g = new Game(1);
+    g.start();
+    // 缓缓下坠但体心低于怪心 —— 这是撞上去，不是踩下去
+    g.player.pos.y = 160;
+    g.player.vel.y = 60;
+    g.player.onGround = false;
+    const px = g.player.pos.x;
+    g.enemies.list.push({
+      kind: 'walker', x: px, y: 150, w: 24, h: 20,
+      dir: 1, baseY: 0, phase: 0, alive: true, minX: px - 50, maxX: px + 50,
+    } as Enemy);
+    g.update(IDLE, DT);
+    expect(g.state).toBe('dead');
+    expect(g.deathCause).toBe('enemy');
   });
 });
 

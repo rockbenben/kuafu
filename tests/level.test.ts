@@ -27,7 +27,8 @@ describe('parseChunk', () => {
   });
   it('光点与水晶取格中心并应用偏移', () => {
     const out = parseChunk(tiny, 100);
-    expect(out.motes[0]).toEqual({ x: 100 + 1 * TILE + TILE / 2, y: 14 * TILE + TILE / 2, taken: false });
+    // 拾取物比格心上提一格：格心正撞人物头顶（发梢/杖尖），看着像顶在头上又够不着
+    expect(out.motes[0]).toEqual({ x: 100 + 1 * TILE + TILE / 2, y: 13 * TILE + TILE / 2, taken: false });
     expect(out.crystals[0].x).toBe(100 + 4 * TILE + TILE / 2);
   });
   it('宽度正确', () => {

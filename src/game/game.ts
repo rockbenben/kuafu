@@ -38,7 +38,7 @@ export class Game {
   // 新手引导：记录首次动作是否完成，用于情境提示
   private hasJumped = false;
   private hasDashed = false;
-  private hasKilled = false;
+  private kills = 0;
 
   // 夸父逐日：随距离推进的叙事碎片（key 交由 UI 按简繁解析）
   // 0~2000 为《山海经·海外北经》主脉；此后为《大荒北经》《列子》陶潜等古籍
@@ -98,7 +98,8 @@ export class Game {
     this.airtime = 0;
     this.charge = 0;
     this.deathCause = null;
-    this.hasJumped = this.hasDashed = this.hasKilled = false;
+    this.hasJumped = this.hasDashed = false;
+    this.kills = 0;
     this.nextMilestone = 0;
     this.narrationKey = null;
     this.narrationTimer = 0;
@@ -118,13 +119,17 @@ export class Game {
     const camL = this.cameraX, camR = camL + VIEW_W;
     if (this.elapsed < 3.2) return 'hint.run';
     if (!this.hasJumped && this.elapsed < 10) return 'hint.jump';
+    // 打怪最要紧、也最猜不着，故排在计分/冲刺之前，且放宽两处：
+    //   · 提前一整屏预警（原来只提前 120px ≈ 半秒，怪已扑到脸上才出字）
+    //   · 前三次击杀之内都讲（原来杀过一次就永不再提，可玩家往往到第二只
+    //     怪才真需要它——第一只多半是撞死的）
+    if (this.kills < 3 && this.enemies.list.some(e => e.alive && e.x > camL && e.x < camR + VIEW_W)) {
+      return 'hint.kill';
+    }
     // 记分教学：还没拾到日光时，早期提示拾光升倍率的作用
     if (this.score.motes === 0 && this.elapsed > 4 && this.elapsed < 13) return 'hint.score';
     if (!this.hasDashed && this.level.crystals.some(c => !c.taken && c.x > camL && c.x < camR)) {
       return 'hint.dash';
-    }
-    if (!this.hasKilled && this.enemies.list.some(e => e.alive && e.x > camL && e.x < camR + 120)) {
-      return 'hint.kill';
     }
     return null;
   }
@@ -204,21 +209,27 @@ export class Game {
         e.alive = false;
         this.score.bonus += STRIDE_KILL_BONUS;
         this.justKilledEnemy = true;
-        this.hasKilled = true;
+        this.kills++;
       } else if (this.player.smashing) {
         // 冲刺（含刚结束的宽限）撞碎小怪
         e.alive = false;
         this.score.killBonus();
         this.charge = Math.min(1, this.charge + CHARGE_PER_KILL);
         this.justKilledEnemy = true;
-        this.hasKilled = true;
-      } else if (this.player.vel.y > 0 && this.player.pos.y + this.player.rect.h < e.y + e.h * 0.6) {
-        // 踩踏/压死：下落中自上方踏中小怪 → 击杀并小幅回弹
+        this.kills++;
+      } else if (this.player.vel.y > 0 && this.player.pos.y + this.player.rect.h / 2 < e.y + e.h / 2) {
+        // 踩踏/压死：下落中自上方踏中小怪 → 击杀并小幅回弹。
+        //
+        // 判据是「体心高过怪心」，不是「脚底在怪头 0.6 格之内」：后者对 walker
+        // 只有 12px 的窗口，而下落最快 900px/s（每帧 15px），一帧就能从怪头上方
+        // 直接跨到窗口以下——玩家明明是踩下去的，却判成撞死。体心判据把窗口放到
+        // 24px（> 单帧位移），任何速度都不会漏踩，且侧面撞上时体心仍在怪心之下，
+        // 该死的照样死。
         e.alive = false;
         this.score.killBonus();
         this.charge = Math.min(1, this.charge + CHARGE_PER_KILL);
         this.justKilledEnemy = true;
-        this.hasKilled = true;
+        this.kills++;
         this.player.stompBounce();
       } else {
         return this.die('enemy');
