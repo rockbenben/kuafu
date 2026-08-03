@@ -1,6 +1,6 @@
 import type { Game } from '../game/game';
 import type { Particles } from '../engine/particles';
-import { themeAt, rgb } from './theme';
+import { themeAt, rgb, posHash as hash } from './theme';
 import { drawBackground } from './background';
 import { drawProps } from './props';
 import { VIEW_W, WORLD_H, PLAYER_H } from '../game/constants';
@@ -107,6 +107,18 @@ export class Renderer {
     }
     ctx.restore();
 
+    // 标题页到此为止：只呈美术图 + 天光 + 暗角。
+    //
+    // 此前底下那局「尚未开始」的世界也照画不误，而它从未 update 过——地形只
+    // 生成了开局那一块，于是标题页左下角永远糊着一道齐刷刷断掉的土坡，坡上
+    // 悬着几粒够不着的日光点和一个站着不动的小人，看着像渲染坏了。美术图里
+    // 本来就有大地与落日，再压一层演示地形只会打架。
+    if (game.state === 'title') {
+      this.vignette(ctx, VW);
+      if (popups) popups.draw(ctx, cam, `16px ${fontHud()}`); // 秘籍提示可在标题页触发
+      return;
+    }
+
     // 光点辉光（附加混合 + 轻脉动，收敛尺寸）
     ctx.save();
     ctx.globalCompositeOperation = 'lighter';
@@ -131,7 +143,6 @@ export class Renderer {
 
     // 平台：夸父焦土——龟裂大地（无缝暗土体 + 受晒暖壳 + 泥板龟裂 + 夕照顶缘）
     const solids = game.level.solids;
-    const hash = (n: number) => ((n * 2654435761) >>> 0) / 4294967296;
     // 1) 土体：扁平暗赭色统一铺底——堆叠的多块共用一色，杜绝分层缝
     ctx.fillStyle = rgb([40, 26, 13]);
     for (const s of solids) {
@@ -494,12 +505,7 @@ export class Renderer {
       ctx.restore();
     }
 
-    // 暗角（克制，仅四角轻压，避免像蒙一层暗膜）
-    const vg = ctx.createRadialGradient(VW / 2, WORLD_H * 0.52, WORLD_H * 0.62, VW / 2, WORLD_H * 0.52, WORLD_H * 1.15);
-    vg.addColorStop(0, 'rgba(0,0,0,0)');
-    vg.addColorStop(1, 'rgba(0,0,0,0.26)');
-    ctx.fillStyle = vg;
-    ctx.fillRect(0, 0, VW, WORLD_H);
+    this.vignette(ctx, VW);
 
     // 浮动反馈文字（拾光/续力/击杀）——在暗角之上，世界坐标
     if (popups) popups.draw(ctx, cam, `16px ${fontHud()}`);
@@ -512,7 +518,10 @@ export class Renderer {
         const sc = Math.max(VW / img.width, WORLD_H / img.height);
         const w = img.width * sc, h = img.height * sc;
         ctx.drawImage(img, (VW - w) / 2, (WORLD_H - h) / 2, w, h);
-        ctx.fillStyle = 'rgba(0,0,0,0.42)';
+        // 0.42 的压暗是按暗调结局图定的；邓林那几张是明亮的桃花逆光，死因、
+        // 「弃其杖，化为邓林」与分享提示（皆 0.6 上下的暖白）压在花瓣上几乎读不出。
+        // 结算页首先得让人看清自己走了多远，氛围让位于可读。
+        ctx.fillStyle = 'rgba(0,0,0,0.55)';
       } else {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
       }
@@ -524,6 +533,15 @@ export class Renderer {
       ctx.fillStyle = rgb([255, 255, 250], camFx.flash * 0.55);
       ctx.fillRect(-VW, -WORLD_H, VW * 3, WORLD_H * 3);
     }
+  }
+
+  /** 暗角（克制，仅四角轻压，避免像蒙一层暗膜）。标题页与游玩共用。 */
+  private vignette(ctx: CanvasRenderingContext2D, VW: number) {
+    const vg = ctx.createRadialGradient(VW / 2, WORLD_H * 0.52, WORLD_H * 0.62, VW / 2, WORLD_H * 0.52, WORLD_H * 1.15);
+    vg.addColorStop(0, 'rgba(0,0,0,0)');
+    vg.addColorStop(1, 'rgba(0,0,0,0.26)');
+    ctx.fillStyle = vg;
+    ctx.fillRect(0, 0, VW, WORLD_H);
   }
 
   get viewWidth() { return this.vw; }

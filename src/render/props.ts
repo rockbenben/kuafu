@@ -1,4 +1,4 @@
-import { rgb, journeyPhase, PHASE_ART, type Theme } from './theme';
+import { rgb, journeyPhase, PHASE_ART, posHash as hash, type Theme } from './theme';
 import { PROP_BIOMES, type Assets } from './assets';
 
 // 前景装饰道具层：按旅程段落在地平线一带疏落散布契合当段的剪影景物
@@ -6,8 +6,6 @@ import { PROP_BIOMES, type Assets } from './assets';
 const SPACING = 300;   // 每 300 世界像素一个装饰位
 const PAR = 0.72;      // 视差系数（近景 bg 0.5 与平台 1.0 之间）
 const BASE_Y = 0.80;   // 装饰基线（屏高比例，贴近地平/平台）
-
-const hash = (n: number) => (Math.imul(n ^ 0x9e3779b9, 2654435761) >>> 0) / 4294967296;
 
 const tintCache = new Map<string, HTMLCanvasElement>();
 function tintedProp(img: HTMLImageElement, tint: [number, number, number]): HTMLCanvasElement {

@@ -43,7 +43,7 @@ const BUDGET: { key: StringKey; px: number; max: number }[] = [
   { key: 'hint.dash', px: 18, max: VW_MIN - 80 },
   { key: 'hint.kill', px: 18, max: VW_MIN - 80 },
   { key: 'hint.score', px: 18, max: VW_MIN - 80 },
-  { key: 'hint.ult', px: 15, max: VW_MIN - 80 },
+  { key: 'hint.ult', px: 18, max: VW_MIN - 80 },
   { key: 'death.spike', px: 22, max: VW_MIN - 80 },
   { key: 'death.fall', px: 22, max: VW_MIN - 80 },
   { key: 'death.darkness', px: 22, max: VW_MIN - 80 },
@@ -51,6 +51,8 @@ const BUDGET: { key: StringKey; px: number; max: number }[] = [
   { key: 'death.footer', px: 16, max: VW_MIN - 80 },
   { key: 'death.restart', px: 16, max: VW_MIN - 80 },
   { key: 'death.share', px: 13, max: VW_MIN - 80 },
+  { key: 'death.offline', px: 13, max: VW_MIN - 80 },
+  { key: 'death.pending', px: 13, max: VW_MIN - 80 },
   { key: 'share.tagline', px: 32, max: 1100 }, // 分享卡 1200 宽
 ];
 
@@ -120,6 +122,8 @@ describe('触屏按钮标签必须装得进圆钮', () => {
         ['hint.run.touch', 'btn.fwd'],
         ['hint.jump.touch', 'btn.jump'],
         ['hint.dash.touch', 'btn.dash'],
+        ['hint.kill.touch', 'btn.dash'],
+        ['hint.kill.touch', 'btn.jump'],   // 打怪有两法：撞碎与踩踏，两个按钮都得提到
         ['hint.ult.touch', 'btn.ult'],
       ];
       for (const [textKey, btnKey] of pairs) {

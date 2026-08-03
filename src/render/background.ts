@@ -1,4 +1,4 @@
-import { rgb, journeyPhase, PHASE_ART, type Theme } from './theme';
+import { rgb, journeyPhase, PHASE_ART, posHash, type Theme } from './theme';
 import { PHASE_KEYS, type Assets } from './assets';
 
 /** 确定性伪随机轮廓：多重正弦叠加，无需存储地形。 */
@@ -107,7 +107,7 @@ function drawPeachGrove(ctx: CanvasRenderingContext2D, theme: Theme, cameraX: nu
   ctx.globalAlpha = Math.min(1, pv);
   for (let wx = startWx; wx < scrolled + w + spacing; wx += spacing) {
     const x = wx - scrolled;
-    const r = ((wx * 2654435761) >>> 0) / 4294967296;
+    const r = posHash(wx);
     const trunkH = 26 + r * 20;
     const tx = x + (r * 40 - 20);
     // 树干

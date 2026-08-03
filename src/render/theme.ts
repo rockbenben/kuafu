@@ -39,6 +39,16 @@ const JOURNEY: Phase[] = [
 // 月夜→桃、长夜→焦土、重临→拂晓，故无需新素材即可景随事迁。
 export const PHASE_ART = ['dawn', 'blaze', 'river', 'lake', 'parch', 'peach', 'peach', 'parch', 'dawn'] as const;
 
+/**
+ * 世界坐标 → 0~1 的确定性伪随机（地形裂纹、桃林、道具的散布都靠它）。
+ *
+ * 必须先异或再乘：裸的 `x * 2654435761` 在等距采样下（裂纹每 72px 取一次、
+ * 桃树每 190px 取一次）退化成等差数列——"随机"偏移于是整齐地一格格递进，
+ * 1920 以上的屏幕上一眼就看出是复读的纹样，而不是干裂的地。异或黄金比常数
+ * 再 imul 打散了这层线性关系。
+ */
+export const posHash = (n: number) => (Math.imul(n ^ 0x9e3779b9, 2654435761) >>> 0) / 4294967296;
+
 function lerp3(a: [number, number, number], b: [number, number, number], t: number): [number, number, number] {
   return [0, 1, 2].map(i => Math.round(a[i] + (b[i] - a[i]) * t)) as [number, number, number];
 }

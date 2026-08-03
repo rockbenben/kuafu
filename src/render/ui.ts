@@ -119,10 +119,14 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
     // 新手情境提示（底部居中，脉动辉光）
     const hint = game.hint;
     if (hint) {
-      const pulse = 0.6 + 0.4 * Math.sin(performance.now() / 320);
+      // 教学提示画在 0.72 高度，那一带正是剪影树线——最杂的背景。此前用
+      // 辉光色当阴影（亮底上等于没有阴影）、脉动又低到 0.2，于是新手最需要
+      // 它的时候恰好看不清。改：暗影托底保证任何背景上都读得出，脉动只在
+      // 0.55~1 之间起伏（仍在呼吸，但不再隐身）。
+      const pulse = 0.775 + 0.225 * Math.sin(performance.now() / 320);
       ctx.textAlign = 'center';
-      ctx.shadowColor = rgb(theme.glow, 0.9);
-      ctx.shadowBlur = 16;
+      ctx.shadowColor = 'rgba(8,4,2,0.85)';
+      ctx.shadowBlur = 10;
       ctx.fillStyle = rgb(theme.glow, pulse);
       drawFit(ctx, tTouch(hint, coarse), vw / 2, WORLD_H * 0.72, vw - 80, 18, fontKai());
       ctx.shadowBlur = 0;
@@ -153,12 +157,15 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
     ctx.fillStyle = 'rgba(255,240,220,0.6)';
     ctx.fillText(t('hud.charge'), bx - 10, by - 4);
     if (ready) {
-      const pulse = 0.55 + 0.45 * Math.sin(performance.now() / 200);
+      // 新手不知道攒满的「神力」是个大招：槽满之前它只是一条会变长的细线，槽满
+      // 之后的告示又只有 15px、贴在画面最底、还会脉动到 0.55——正好落在视线之外。
+      // 与教学提示同一套处理：字号提到 18、暗影托底、脉动只在 0.7~1 之间。
+      const pulse = 0.85 + 0.15 * Math.sin(performance.now() / 200);
       ctx.textAlign = 'center';
-      ctx.shadowColor = rgb(theme.glow, 0.9);
-      ctx.shadowBlur = 14;
+      ctx.shadowColor = 'rgba(8,4,2,0.85)';
+      ctx.shadowBlur = 10;
       ctx.fillStyle = rgb(theme.glow, pulse);
-      drawFit(ctx, tTouch('hint.ult', coarse), vw / 2, by - 20, vw - 80, 15, fontKai());
+      drawFit(ctx, tTouch('hint.ult', coarse), vw / 2, by - 26, vw - 80, 18, fontKai());
       ctx.shadowBlur = 0;
     }
     return;
@@ -214,7 +221,7 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   const st = game.runStats;
   // 死因·升华为神话之句
   ctx.font = `22px ${fontKai()}`;
-  ctx.fillStyle = 'rgba(248,238,222,0.62)';
+  ctx.fillStyle = 'rgba(248,238,222,0.88)';
   ctx.fillText(t(DEATH_KEY[game.deathCause ?? 'darkness'] ?? 'death.darkness'), vw / 2, WORLD_H * 0.22);
   // 功业·本局总分，朱印钤记（如画作落款用印）
   ctx.font = `48px ${fontHud()}`;
@@ -234,9 +241,11 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   ctx.fillStyle = 'rgba(255,245,230,0.75)';
   let y = WORLD_H * 0.52;
   if (board.status === 'pending') {
-    ctx.fillText(t('death.pending'), vw / 2, y);
+    drawFit(ctx, t('death.pending'), vw / 2, y, vw - 80, 13, fontKai());
   } else if (board.status === 'offline') {
-    ctx.fillText(t('death.offline'), vw / 2, y);
+    // 现在这行会把「为什么没上榜」说清楚，比原来光一个「离线」长得多，
+    // 必须走 drawFit——窄视口下 fillText 会直接顶出画布。
+    drawFit(ctx, t('death.offline'), vw / 2, y, vw - 80, 13, fontKai());
   } else if (board.status === 'done') {
     ctx.fillStyle = rgb(theme.glow, 0.9);          // 榜名：今日挑战榜 / 天下逐日榜
     ctx.fillText(t(game.mode === 'daily' ? 'board.daily' : 'board.endless'), vw / 2, y);
@@ -255,9 +264,11 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   // 底部收尾：随榜单高度自适应下移，避免与榜行相撞
   let fy = Math.max(WORLD_H * 0.60, y + 34);
   ctx.font = `16px ${fontKai()}`;
-  ctx.fillStyle = 'rgba(240,228,210,0.6)';
+  ctx.fillStyle = 'rgba(240,228,210,0.78)';
   ctx.fillText(t('death.footer'), vw / 2, fy);      // 弃其杖，化为邓林
-  ctx.fillStyle = 'rgba(255,240,220,0.6)';
+  // 分享是这一屏的第二动作，此前 0.6 的暖白压在亮结局图上近乎隐形，
+  // 等于没有出口；提到与「再逐一程」相称的亮度。
+  ctx.fillStyle = 'rgba(255,240,220,0.85)';
   drawFit(ctx, tTouch('death.share', coarse), vw / 2, fy + 30, vw - 80, 13, fontKai());
   ctx.fillStyle = rgb(theme.glow);
   drawFit(ctx, tTouch('death.restart', coarse), vw / 2, fy + 60, vw - 80, 16, fontKai());
