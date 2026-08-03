@@ -40,7 +40,10 @@
     /* 触屏控制·逐日 —— 玄石为体、落日斜掠为光、楷书为言：
        静息是被低日打亮的暗石碟（受光偏右上=所追之日方向，凸面感）；按下自石心迸出
        日光、字亮如曦白（拾日光）。控制字皆楷书动词：退·进·跃·冲·跨。仅粗指针游玩时 .on 显示 */
-    #tc { position: fixed; inset: 0; z-index: 9; display: none; pointer-events: none; }
+    /* 退·辅键尺寸：按 vh 缩放，但不得小于 44px——横持小屏（375px 高）时
+       10vh 只有 37.5px，低于可点最小尺寸，拇指常按空。进键的左偏移跟着它走，
+       否则退键一变大就与进键叠在一起。 */
+    #tc { position: fixed; inset: 0; z-index: 9; display: none; pointer-events: none; --back: max(10vh, 44px); }
     #tc.on { display: block; }
     #tc button {
       position: absolute; pointer-events: auto; margin: 0; padding: 0;
@@ -72,9 +75,9 @@
     }
     /* 逐日恒向前：进 为主（大碟，石心含一点落日之火，拇指常驻）；退 为辅（小碟，偶尔回身） */
     #tc-right { width: 16.5vh; height: 16.5vh; font-size: 6.4vh;
-      left: calc(3.5vw + env(safe-area-inset-left, 0px) + 11vh);
+      left: calc(3.5vw + env(safe-area-inset-left, 0px) + var(--back) + 8px);
       bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px)); }
-    #tc-left { width: 10vh; height: 10vh; font-size: 4vh;
+    #tc-left { width: var(--back); height: var(--back); font-size: max(4vh, 17px);
       left: calc(3.5vw + env(safe-area-inset-left, 0px));
       bottom: calc(5.5vh + env(safe-area-inset-bottom, 0px)); }
     /* 进·主控：靠"更大 + 一点含蓄暖核"作主，而非发光抢眼（游玩时长驻眼角，须克制） */
@@ -114,7 +117,7 @@
       #tc button#tc-ult.ready { animation: none; box-shadow: 0 0 18px 5px rgba(255, 186, 104, 0.4); }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-sC1MaA49.js"></script>
+  <script type="module" crossorigin src="./assets/index-BQ0FEwa2.js"></script>
   <meta property="og:locale" content="zh_CN" />
   <meta name="twitter:title" content="逐光 · 夸父逐日" />
   <meta name="twitter:description" content="剪影风神话跑酷：化身夸父追逐永不可及的太阳，看你能逐日多远。" />
