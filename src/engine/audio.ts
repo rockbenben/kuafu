@@ -1,6 +1,32 @@
 export class Audio2 {
   muted = false;
   private ctx: AudioContext | null = null;
+  private master: DynamicsCompressorNode | null = null;
+
+  /**
+   * 总输出限幅：所有声源都先汇到这里，再出 destination。
+   *
+   * 此前每个音各自直连 destination，谁也不知道别人多响。单个音都克制（0.08~0.16），
+   * 但后程小怪渐密、乐床节拍也渐紧，击杀 + 拾光 + 落地 + 大招 + 死亡的短音会挤进
+   * 同几帧叠加——分开听都对，加起来就糊成一团。限幅器按住峰值，混音再挤也不炸。
+   *
+   * 早期实测峰值只到 0.31（不削顶），所以这是给后程密集段兜底的，不是修一个
+   * 已复现的削顶。
+   */
+  private out(): AudioNode | null {
+    if (!this.ctx) return null;
+    if (!this.master) {
+      const c = this.ctx.createDynamicsCompressor();
+      c.threshold.value = -14;
+      c.knee.value = 24;
+      c.ratio.value = 12;
+      c.attack.value = 0.003;
+      c.release.value = 0.2;
+      c.connect(this.ctx.destination);
+      this.master = c;
+    }
+    return this.master;
+  }
 
   unlock() {
     if (!this.ctx) {
@@ -25,7 +51,9 @@ export class Audio2 {
     osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
     gain.gain.setValueAtTime(vol, t);
     gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
-    osc.connect(gain).connect(this.ctx.destination);
+    const out = this.out();
+    if (!out) return;
+    osc.connect(gain).connect(out);
     osc.start(t);
     osc.stop(t + dur);
   }
@@ -70,7 +98,9 @@ export class Audio2 {
     const g = this.ctx.createGain();
     g.gain.setValueAtTime(0.0001, t);
     g.gain.linearRampToValueAtTime(0.9, t + 1.5); // 总线缓入；实际音量在各拨弦内控制
-    filt.connect(g).connect(this.ctx.destination);
+    const out = this.out();
+    if (!out) return;
+    filt.connect(g).connect(out);
     this.bus = { g, filt };
     this.ambientOn = true;
     this.nextBeat = t + 0.3;
@@ -82,17 +112,23 @@ export class Audio2 {
   dispose() {
     this.ambientOn = false;
     this.bus = null;
+    this.master = null;
     if (this.ctx) { this.ctx.close().catch(() => {}); this.ctx = null; }
   }
 
   private stopAmbient() {
     if (!this.ctx || !this.bus) return;
     const t = this.ctx.currentTime;
-    this.bus.g.gain.cancelScheduledValues(t);
-    this.bus.g.gain.setValueAtTime(this.bus.g.gain.value, t);
-    this.bus.g.gain.linearRampToValueAtTime(0.0001, t + 0.4); // 缓出后余音自然收
+    const { g, filt } = this.bus;
+    g.gain.cancelScheduledValues(t);
+    g.gain.setValueAtTime(g.gain.value, t);
+    g.gain.linearRampToValueAtTime(0.0001, t + 0.4); // 缓出后余音自然收
     this.bus = null;
     this.ambientOn = false;
+    // 缓出结束后把这条旧总线摘下来。原先只是把引用置空，节点仍挂在图上——
+    // 每死一次泄一对 gain+filter，玩十几局就有几十条常驻支路一直参与混音渲染，
+    // 音频线程越来越吃力，正是「玩着玩着声音开始发毛」的那种脏。
+    setTimeout(() => { try { g.disconnect(); filt.disconnect(); } catch { /* 已关闭 */ } }, 700);
   }
 
   /** 古筝拨弦：三角基音 + 八度正弦泛音提亮，快起慢落；at 延时、dur 时值。 */
