@@ -67,6 +67,24 @@ export const SITE = [
 
 export const DEFAULT_ID = SITE[0].id;
 
+/**
+ * GitHub 仓库社交预览图的文案（Settings → General → Social preview）。
+ *
+ * 单张、不分语种：那是仓库级设置，一个仓库只能挂一张，也没有 API 按访客语种
+ * 换图。故这里不复用 SITE 的 card* 字段——它们是五语种各一份的站点分享卡。
+ *
+ * 文案分工：eyebrow 给不读中文的人一个抓手，line 是这个神话唯一要说的一句，
+ * foot 是「它是什么做的」。刻意不写「剪影风神话跑酷」当主标语——那是品类
+ * 名，谁都能写；「追一轮永不可及的太阳」只有这个项目能写。
+ */
+export const SOCIAL = {
+  eyebrow: 'CHASING LIGHT',
+  title: '逐光',
+  sub: '夸父逐日',
+  line: '追一轮永不可及的太阳',
+  foot: '剪影神话跑酷 · 零依赖 Canvas 2D · 365 开源计划 #25',
+};
+
 /** 该语种页面的站内路径（默认语种落在根）。 */
 export function localePath(id) {
   return id === DEFAULT_ID ? '/' : `/${id}/`;

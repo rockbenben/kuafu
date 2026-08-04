@@ -9,7 +9,7 @@
 import { writeFileSync, mkdirSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { SITE } from './site-meta.mjs';
+import { SITE, SOCIAL } from './site-meta.mjs';
 
 const OUT = join(dirname(fileURLToPath(import.meta.url)), '..', 'assets', 'fonts', 'og');
 
@@ -24,10 +24,27 @@ const FAMILY = {
 
 const CARD_FIELDS = ['cardTitle', 'cardSub', 'cardTagline', 'cardFooter'];
 
+/**
+ * 社交预览图用霞鹜文楷（楷体骨架），而非上面五张卡的 Noto Serif（宋体骨架）。
+ *
+ * 游戏内每一个字都是楷体（见 render/strings.ts 的 fontKai），题头引的又是
+ * 《山海经》——宋体是印刷体的声音，楷体才是写下这些句子时的声音。社交预览图
+ * 是整个仓库的门面，声音得对。TC 版同样带简化字码位（已核对 轮/阳/话/计/划/
+ * 开/赖），而卡面这几个字简繁同形，不会串字形。
+ */
+export const SOCIAL_FAMILY = 'LXGW WenKai TC';
+
 /** 该语种卡面用到的全部字符（去重、排序，保证可复现）。 */
 export function charsetFor(meta) {
   const set = new Set();
   for (const f of CARD_FIELDS) for (const c of meta[f]) set.add(c);
+  return [...set].sort().join('');
+}
+
+/** 社交预览图卡面用到的全部字符。 */
+export function socialCharset() {
+  const set = new Set();
+  for (const v of Object.values(SOCIAL)) for (const c of v) set.add(c);
   return [...set].sort().join('');
 }
 
@@ -57,17 +74,28 @@ async function main() {
     total += buf.length;
     console.log(`  ${s.id.padEnd(8)} ${FAMILY[s.id].padEnd(14)} ${String(text.length).padStart(3)} 字  ${(buf.length / 1024).toFixed(1)} KB`);
   }
+  const social = socialCharset();
+  const buf = await fetchSubset(SOCIAL_FAMILY, social);
+  writeFileSync(join(OUT, 'social.subset.ttf'), buf);
+  total += buf.length;
+  console.log(`  ${'social'.padEnd(8)} ${SOCIAL_FAMILY.padEnd(14)} ${String(social.length).padStart(3)} 字  ${(buf.length / 1024).toFixed(1)} KB`);
+
   writeFileSync(join(OUT, 'OFL.txt'), OFL, 'utf8');
   console.log(`  合计 ${(total / 1024).toFixed(1)} KB`);
 }
 
-const OFL = `本目录下的 *.subset.ttf 取自 Google Fonts 的 Noto Serif 家族
-(Noto Serif / Noto Serif SC / Noto Serif TC / Noto Serif JP / Noto Serif KR)，
-仅裁剪为 og 卡片所需的字形，未作其他修改。
+const OFL = `本目录下的 *.subset.ttf 取自 Google Fonts，仅裁剪为卡面所需的字形，
+未作其他修改。
 
-Copyright 2012-2023 The Noto Project Authors (https://github.com/notofonts)
+五语种站点分享卡（zh-Hans / zh-Hant / en / ja / ko.subset.ttf）
+  Noto Serif 家族 (Noto Serif / Noto Serif SC / TC / JP / KR)
+  Copyright 2012-2023 The Noto Project Authors (https://github.com/notofonts)
 
-以 SIL Open Font License 1.1 授权，全文见：
+GitHub 社交预览图（social.subset.ttf）
+  LXGW WenKai TC / 霞鹜文楷
+  Copyright 2021 The LXGW WenKai Project Authors (https://github.com/lxgw/LxgwWenKai)
+
+两者均以 SIL Open Font License 1.1 授权，全文见：
 https://scripts.sil.org/OFL
 
 这些字体仅用于构建期生成分享卡图，不随游戏下发给浏览器。

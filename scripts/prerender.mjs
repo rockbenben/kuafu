@@ -69,8 +69,8 @@ export function renderPage(html, id) {
   out = setMeta(out, 'property', 'og:title', m.ogTitle);
   out = setMeta(out, 'property', 'og:description', m.ogDescription);
   out = setMeta(out, 'property', 'og:url', localeUrl(id));
-  out = setMeta(out, 'property', 'og:image', `${SITE_URL}/og/${id}.webp`);
-  out = setMeta(out, 'name', 'twitter:image', `${SITE_URL}/og/${id}.webp`);
+  out = setMeta(out, 'property', 'og:image', `${SITE_URL}/og/${id}.jpg`);
+  out = setMeta(out, 'name', 'twitter:image', `${SITE_URL}/og/${id}.jpg`);
 
   // 追加：og:locale、twitter 文案、canonical、hreflang
   const extra = [

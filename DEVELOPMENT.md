@@ -30,11 +30,27 @@ npm run preview    # 本地预览构建产物
 另有两个**按需**脚本，产物提交进仓库、不进 `npm run build`：
 
 ```bash
-npm run fonts      # 裁剪 Noto Serif 到分享卡实际用到的字 → assets/fonts/og/
-npm run og         # 生成五语种分享卡 → public/og/
+npm run fonts      # 裁剪字体到卡面实际用到的字 → assets/fonts/og/
+npm run og         # 站点分享卡 → public/og/；GitHub 社交预览图 → docs/images/social-card.png
 ```
 
 它们不进构建，是因为 CI（Linux）没有 CJK 字体，构建期生成会**静默**产出豆腐块——这种失败不报错，只会让线上分享卡变成一堆方块。改了卡面文案才需要重跑（先 `fonts` 后 `og`）。
+
+两种卡是两件事，别互相套用：
+
+| | 站点分享卡 | GitHub 社交预览图 |
+|---|---|---|
+| 脚本 | `scripts/og.mjs` | `scripts/social-card.mjs` |
+| 产物 | `public/og/{语种}.jpg` ×5 | `docs/images/social-card.png` ×1 |
+| 尺寸 | 1200×630 | 1280×640（GitHub 推荐，2:1 不裁边） |
+| 格式 | JPEG——FB / LinkedIn / 微信 不认 WebP | PNG——GitHub 只收 PNG/JPG/GIF |
+| 字体 | Noto Serif（宋） | 霞鹜文楷（楷，与游戏内同调） |
+| 画法 | 美术画版压暗 + 叠字 | 用游戏自己的画法重画一帧 |
+| 上线 | 随构建发布 | **手工**上传，见下 |
+
+`social-card.png` 走 GitHub 仓库设置：**Settings → General → Social preview**。那个上传口只收 PNG / JPG / GIF 且 ≤1 MB（`public/og/*.webp` 一张都喂不进去），且是仓库级设置、没有 API，重新生成后必须手工再传一次。
+
+卡面上的天色、山影层高与透明度、日轮与长夜的配方都取自 `src/render/theme.ts` / `render/*.ts`——看到卡的人看到的就是打开游戏会看到的东西。天色那份常量是抄过去的（node 脚本读不了 TS），`tests/og.test.ts` 会拿 `themeAt(0)` 逐值比对，改了一边就报错。
 
 ## 部署
 
@@ -93,7 +109,7 @@ npx wrangler d1 execute kuafu --remote --file=./migrations/0001_add_board.sql
 - **每日种子挑战**：`dailySeed(UTC日期)` 派发全球统一的当日种子，人人同图竞逐；榜单按 `board` 分区（`endless` / `daily:YYYY-MM-DD`），每日独立刷新。
 - **WebAudio 程序化音效与乐床**：`src/engine/audio.ts` 不加载任何音频文件，实时合成振荡器波形；环境乐床为纯古筝式事件音——驱动型五声固定音型（稳定跑动的奔逐推进）+ 疏落乐句，**全为衰减拨弦、无任何持续音**，随旅程渐紧。
 - **i18n（五语种）**：`src/i18n/` 下每语种一个模块，`StringKey` 由基准语种 `zh-Hans` 推导，其余语种 `: Messages` 标注——**漏译在编译期即报错**。字体栈按语种切换（中文楷体 / 日文明朝 / 韩文明朝体 / 西文衬线，末尾均补同语种黑体兜底防豆腐块）。文案全量内联不做懒加载（gzip 约 5KB），换取切换零延迟。`src/render/text.ts` 的 `drawFit` 在译文过长时降字号，`tests/i18n-width.test.ts` 以粗字宽模型对 5 语种 × 53 个绘制点做宽度预算断言（预算按运行时视口下限 820 算，不是 `VIEW_W` 的 960）。语种协商见 `pickLocale`：**亲选 → `?lang=` → 路径语种 → 存储 → 浏览器语言**，亲选优先于一切，免得别人分享的链接顶掉用户自己的选择。
-- **多语言 SEO 预渲染**：单页 canvas 游戏在客户端切语言，搜索引擎看不见——它只读首屏 HTML。故 `scripts/prerender.mjs` 在构建后为每个语种产出独立页面（`/` 为简体 canonical，另有 `/en/` `/ja/` `/ko/` `/zh-Hant/`），各自带本地化 `<title>`/`description`/`og:*`、`canonical`、5 条 `hreflang` + `x-default`，并生成 `sitemap.xml`。站点级文案的唯一真源在 `scripts/site-meta.mjs`，`tests/prerender.test.ts` 会把它与 `src/i18n/keys.ts` 比对，防两处漂移。
+- **多语言 SEO 预渲染**：单页 canvas 游戏在客户端切语言，搜索引擎看不见——它只读首屏 HTML。故 `scripts/prerender.mjs` 在构建后为每个语种产出独立页面（`/` 为简体 canonical，另有 `/en/` `/ja/` `/ko/` `/zh-Hant/`），各自带本地化 `<title>`/`description`/`og:*`、`canonical`、5 条 `hreflang` + `x-default`，并生成 `sitemap.xml`。站点级文案的唯一真源在 `scripts/site-meta.mjs`，`tests/prerender.test.ts` 会把它与 `src/i18n/keys.ts` 比对，防两处漂移。《山海经》古文旁白在外语下作意译并另起一行标注出处，力求存其古意而非逐字直译。
 - **视口变换与命中判定同源**：UI 以「包含式」缩放居中（不裁不抖，代价是留黑）。`src/render/viewport.ts` 是这套信箱化变换的**唯一**实现——`renderUI` 绘制、`Renderer.screenToWorld` 命中、测试三方共用。凡是对 `renderUI` 里画出来的东西做命中的，都必须先经 `screenToWorld` 换到世界坐标：拿屏幕比例直接比，信箱化越严重错得越多（竖屏手机上世界带只占屏幕中间三分之一）。几何常量（`CHIP` / `SOUND_BTN` / `MENU_PANEL`）一律绘制与命中共用，不许两处各写一份。
 - **指针分派顺序即语义**：`src/main.ts` 的 `pointerdown` 分六段，**顺序不可随意调**——旋转提示 → 语言菜单 → 帮助浮层 → 死亡锁触（含牌子）→ 两枚牌 → 其余触屏交互。前五段与指针类型无关（浮层与牌子是显式控件，桌面点了必须有反应），末段才只对触屏生效。改这里之前先读那段注释里的表。
 - **防作弊思路**：客户端提交携带签名（FNV-1a 摘要 + 固定盐 + **榜单键**，防跨榜重放）；Worker（`worker/src/validate.ts`）另做数值范围、「距离/时长」物理上限、「分数/距离」比例、榜单键白名单等多重校验。

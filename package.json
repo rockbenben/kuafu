@@ -13,7 +13,7 @@
     "preview": "vite preview",
     "test": "vitest run",
     "fonts": "node scripts/subset-fonts.mjs",
-    "og": "node scripts/og.mjs"
+    "og": "node scripts/og.mjs && node scripts/social-card.mjs"
   },
   "devDependencies": {
     "@napi-rs/canvas": "^1.0.2",

@@ -1,10 +1,15 @@
-本目录下的 *.subset.ttf 取自 Google Fonts 的 Noto Serif 家族
-(Noto Serif / Noto Serif SC / Noto Serif TC / Noto Serif JP / Noto Serif KR)，
-仅裁剪为 og 卡片所需的字形，未作其他修改。
+本目录下的 *.subset.ttf 取自 Google Fonts，仅裁剪为卡面所需的字形，
+未作其他修改。
 
-Copyright 2012-2023 The Noto Project Authors (https://github.com/notofonts)
+五语种站点分享卡（zh-Hans / zh-Hant / en / ja / ko.subset.ttf）
+  Noto Serif 家族 (Noto Serif / Noto Serif SC / TC / JP / KR)
+  Copyright 2012-2023 The Noto Project Authors (https://github.com/notofonts)
 
-以 SIL Open Font License 1.1 授权，全文见：
+GitHub 社交预览图（social.subset.ttf）
+  LXGW WenKai TC / 霞鹜文楷
+  Copyright 2021 The LXGW WenKai Project Authors (https://github.com/lxgw/LxgwWenKai)
+
+两者均以 SIL Open Font License 1.1 授权，全文见：
 https://scripts.sil.org/OFL
 
 这些字体仅用于构建期生成分享卡图，不随游戏下发给浏览器。

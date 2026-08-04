@@ -108,10 +108,14 @@ async function main() {
   registerFonts();
   mkdirSync(OUT, { recursive: true });
   const plate = await loadImage(PLATE);
+  // JPEG 而非 WebP：Facebook / LinkedIn / 微信 的抓取器至今不认 WebP 的
+  // og:image，分享出去就是没图（X 认，但不能只顾 X）。也不是 PNG——这是张
+  // 照片式画版，编成 PNG 要 690 KB，是 JPEG 88 的八倍，而卡面既无透明也无
+  // 大片纯色，PNG 一分好处都拿不到。体积从 44 KB 涨到 80 KB，认栽。
   for (const s of SITE) {
-    const buf = await renderCard(plate, s).encode('webp', 88);
-    writeFileSync(join(OUT, `${s.id}.webp`), buf);
-    console.log(`  og/${s.id}.webp  ${(buf.length / 1024).toFixed(1)} KB`);
+    const buf = await renderCard(plate, s).encode('jpeg', 88);
+    writeFileSync(join(OUT, `${s.id}.jpg`), buf);
+    console.log(`  og/${s.id}.jpg  ${(buf.length / 1024).toFixed(1)} KB`);
   }
 }
 

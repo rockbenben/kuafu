@@ -13,8 +13,8 @@ const BASE_HTML = `<!doctype html>
   <meta property="og:title" content="逐光 · 夸父逐日" />
   <meta property="og:description" content="中文 og 描述" />
   <meta property="og:url" content="https://kuafu.newzone.top/" />
-  <meta property="og:image" content="https://kuafu.newzone.top/og-card.webp" />
-  <meta name="twitter:image" content="https://kuafu.newzone.top/og-card.webp" />
+  <meta property="og:image" content="https://kuafu.newzone.top/og/zh-Hans.jpg" />
+  <meta name="twitter:image" content="https://kuafu.newzone.top/og/zh-Hans.jpg" />
   <script type="module" crossorigin src="./assets/index-abc.js"></script>
   <link rel="icon" href="./favicon.svg" />
 </head>
@@ -76,14 +76,14 @@ describe('renderPage', () => {
 
   it('og:url / og:image / og:locale 按语种走', () => {
     expect(ja).toContain(`content="${SITE_URL}/ja/"`);
-    expect(ja).toContain(`content="${SITE_URL}/og/ja.webp"`);
+    expect(ja).toContain(`content="${SITE_URL}/og/ja.jpg"`);
     expect(ja).toContain('property="og:locale" content="ja_JP"');
   });
 
   it('twitter 卡片同步本地化', () => {
     const m = localeMeta('ja');
     expect(ja).toContain(`name="twitter:title" content="${m.ogTitle}"`);
-    expect(ja).toContain(`content="${SITE_URL}/og/ja.webp"`);
+    expect(ja).toContain(`content="${SITE_URL}/og/ja.jpg"`);
   });
 
   // 美术资源是 assets.ts 运行时拼的 URL，reroot() 只改 HTML 属性够不着；
@@ -141,7 +141,7 @@ describe('renderPage', () => {
 
   it('绝对 URL（canonical / og / hreflang）不受重写影响', () => {
     expect(ja).toContain(`href="${SITE_URL}/ja/"`);
-    expect(ja).toContain(`content="${SITE_URL}/og/ja.webp"`);
+    expect(ja).toContain(`content="${SITE_URL}/og/ja.jpg"`);
   });
 
   it('五个语种都能渲染且互不串味', () => {
