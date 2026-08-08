@@ -5,6 +5,20 @@ const ACCEL = 2.6;
 const MAX_SPEED = 330;
 const MAX_LAG = 1200;
 
+/**
+ * 长夜逼近到多近就开始告警（px）。满速 260px/s 下约合 1.65s 的余量——
+ * 够玩家反应，又不至于长时间挂着告警而麻木。
+ */
+export const DANGER_GAP = 430;
+
+/**
+ * 0 = 安全，1 = 贴脸。视觉暗角与心跳共用这一条曲线，两者才同步；
+ * 各算各的会出现「画面已经红了但心跳还慢」的错位。
+ */
+export function dangerLevel(playerX: number, darknessX: number): number {
+  return Math.max(0, Math.min(1, 1 - (playerX - darknessX) / DANGER_GAP));
+}
+
 export class Darkness {
   x = START_X;
 
