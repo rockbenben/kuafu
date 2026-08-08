@@ -26,7 +26,7 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 | **Browsers** | Build target ES2022 — Chrome / Edge 94+, Safari 15.4+, Firefox 93+ |
 | **Install** | None. Open the page and play — no download, no account, no sign-up |
 | **Network** | The game runs entirely in your browser; it only goes online when you submit a score (see below) |
-| **Saves** | Best score and language preference live in browser local storage, never uploaded |
+| **Saves** | Best score, language preference and your custom runner live in browser local storage, never uploaded |
 | **Engine** | Self-built Canvas 2D, zero runtime dependencies, no game framework; the leaderboard runs on a Cloudflare Worker + D1 (optional) |
 
 > The game itself runs entirely in your browser. It only goes online when you **choose to submit a score**, and what leaves your machine is the nickname you typed plus that run's result (score, distance, duration, which board) — no account, no cookies, no other identifiers. Don't submit and it never talks to the network. To host your own backend, see [DEVELOPMENT.md](DEVELOPMENT.md).
@@ -43,9 +43,13 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 
 **Enemies**: `drought-fiends` (demons of drought) and `sunbirds` (the crows of the ten suns). Hit them while dashing or striding to destroy them for points; touch them bare-handed and you die.
 
+**The long night closes in**: the night behind you keeps accelerating and will eventually outrun you. Once it draws near the screen darkens at the edges and a heartbeat sets in, quickening the closer it gets. When you hear it, stop grabbing for sunlight.
+
 **The world follows the story**: water appears through the river and marsh stretches, heat haze shimmers in the sun's scorch, and the closing chapter reveals the peach grove as the sun sinks. Cross the final chapter and it still does not stop — **moonlit Peach Forest → starfields of the Great Wilderness → the return of first light**, seen only by those who travel far.
 
-**Titles and sharing**: your glory earns a title — `Out of the Waste` → `Sun-chaser` → `Drinker of River and Wei` → `North to the Great Marsh` → `Kuafu's Resolve` → `Equal to the Sun`. On the results screen press `F` / tap the top half to make a score card (ending art + glory + title + URL) you can share straight away.
+**Titles and sharing**: your glory earns a title — `Out of the Waste` → `Sun-chaser` → `Drinker of River and Wei` → `North to the Great Marsh` → `Kuafu's Resolve` → `Equal to the Sun`. On the results screen press `F` (on touch, tap the top half) to make a score card (ending art + glory + title + URL) you can share straight away.
+
+**Make it yours**: both the title and results screens carry a "your own runner" button — six built-in silhouettes (`Jade Rabbit`, `Yinglong`, `Xingtian`, `Hou Yi`, `Flying Apsara`, `Cat`), or hit "＋" to run as your own picture. The image is scaled down and kept in your browser's local storage — it is **never uploaded**. Single-frame runners get their gait synthesised — the legs swing while the head stays put, plus airborne stretch and dash lean — so even a headshot runs convincingly without making you dizzy.
 
 ![Results and title](docs/images/screenshot-ending.webp)
 
@@ -56,7 +60,7 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 | **Endless**       | Terrain is random every run, endlessly — compete on the "Hall of Sun-Chasers"                        |
 | **Today's Trial** | One seed and one level worldwide each day; every retry is the same map. It has its own daily board  |
 
-Press `G` on the title screen, or tap the upper part of the screen, to switch modes; the Today's Trial banner shows the date (seeds are issued by UTC day).
+Press `G` on the title screen (on touch, tap the upper part of the screen) to switch modes; the Today's Trial banner shows the date (seeds are issued by UTC day). The results screen lists the top five — if you made it in, your own row is lit.
 
 ## Controls
 
@@ -88,6 +92,7 @@ Everything else has a button in the game, nothing to memorise: help `H`, share `
 - **Code**: [MIT License](LICENSE).
 - **Text**: the narration quotes the *Classic of Mountains and Seas*, *Liezi* and Tao Yuanming's *Reading the Classic of Mountains and Seas*, all public-domain classics. The interface uses the system's serif/regular-script font stacks (no font files are bundled).
 - **Art**: the character, background, ending and title images under `public/assets/` were generated with AI (Google Gemini) and then post-processed. Copyright in AI-generated images is still legally uncertain and is subject to the terms of the generating service; if you intend to use them commercially or redistribute them, assess compliance yourself or substitute your own assets.
+- **Preset runners**: the six `public/assets/sprites/preset-*.svg` are hand-written SVG paths, no AI involved, MIT-licensed along with the rest of this repo.
 
 ## About the 365 Open Source Plan
 
