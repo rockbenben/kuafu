@@ -36,6 +36,7 @@ const BUDGET: { key: StringKey; px: number; max: number }[] = [
   { key: 'help.ult', px: 17, max: HELP_ROW_MAX },
   { key: 'help.mote', px: 17, max: HELP_ROW_MAX },
   { key: 'help.water', px: 17, max: HELP_ROW_MAX },
+  { key: 'help.avatar', px: 17, max: HELP_ROW_MAX },
   { key: 'help.keys', px: 17, max: HELP_ROW_MAX },
   { key: 'help.close', px: 15, max: HELP_ROW_MAX },
   { key: 'hint.run', px: 18, max: VW_MIN - 80 },

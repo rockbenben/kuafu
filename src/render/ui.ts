@@ -255,10 +255,16 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
     ctx.fillText(`${t('death.rank')} ${board.rank ?? '?'}`, vw / 2, y);
     y += 15;
     (board.top ?? []).slice(0, 5).forEach((row, i) => {
-      const name = row.name.length > 8 ? row.name.slice(0, 8) : row.name;
+      // 截断必须留省略号：`Sunrunner` 硬切成 `Sunrunne` 会被当成写错了名字
+      const name = row.name.length > 8 ? `${row.name.slice(0, 7)}…` : row.name;
+      // 榜上有我就点亮那一行——否则玩家盯着五个名字也认不出哪个是自己，
+      // 「天下第 37」与榜身之间没有任何视觉关联
+      const mine = board.rank === i + 1;
+      ctx.fillStyle = mine ? rgb(theme.glow, 0.95) : 'rgba(255,245,230,0.75)';
       y += 15;
       ctx.fillText(`${i + 1}. ${name}  ${row.score}`, vw / 2, y);
     });
+    ctx.fillStyle = 'rgba(255,245,230,0.75)';
   }
 
   // 底部收尾：随榜单高度自适应下移，避免与榜行相撞
@@ -374,7 +380,7 @@ const HELP_LAYOUT = {
   padTop: 26,      // 面板顶 → 标题
   titleH: 58,      // 标题 + 笔意细线占高
   rowH: 34,
-  rows: 7,
+  rows: 8,          // 与 drawHelp 里的 rows 数组等长；改一处必须改另一处
   soundGap: 22,    // 末行 → 声音钮中心
   soundH: 56,      // 声音钮整体占高（仅触屏）
   closeH: 40,
@@ -422,7 +428,7 @@ export function drawHelp(ctx: CanvasRenderingContext2D, theme: Theme, vw: number
   brushRule(ctx, vw / 2, y + 38, 200, theme.glow, 0.5);
   y += HELP_LAYOUT.titleH;
 
-  const rows = ['help.move', 'help.jump', 'help.dash', 'help.ult', 'help.mote', 'help.water', 'help.keys'];
+  const rows = ['help.move', 'help.jump', 'help.dash', 'help.ult', 'help.mote', 'help.water', 'help.avatar', 'help.keys'];
   ctx.fillStyle = 'rgba(255,246,232,0.9)';
   for (const key of rows) {
     drawFit(ctx, tTouch(key, coarse), vw / 2, y, b.x1 - b.x0 - 40, 17, fontKai());
@@ -446,7 +452,8 @@ export function drawHelp(ctx: CanvasRenderingContext2D, theme: Theme, vw: number
 
   ctx.font = `15px ${fontKai()}`;
   ctx.fillStyle = rgb(theme.glow);
-  ctx.fillText(t('help.close'), vw / 2, b.y1 - HELP_LAYOUT.closeH + 6);
+  // 触屏没有 H 键，必须走 tTouch——旁边的语言菜单一直是这么做的，这里漏了
+  ctx.fillText(tTouch('help.close', coarse), vw / 2, b.y1 - HELP_LAYOUT.closeH + 6);
 }
 
 /** 帮助浮层里声音钮的尺寸；其 y 由 helpSoundCenterY 按内容流算出。 */
