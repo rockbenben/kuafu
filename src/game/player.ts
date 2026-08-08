@@ -111,6 +111,14 @@ export class Player {
       return;
     }
 
+    // --- 土狼时间与跳跃缓冲：每帧都走表 ---
+    // 曾经只在下面的 else 分支里递减，于是冲刺期间两个计时器都冻结：跑出崖沿后
+    // 冲刺 0.15s，coyote 一格没掉，冲刺结束仍可起跳——实测能在崖外 120px 处起跳，
+    // 白赚约 3 格跨距，关卡的「跳跃极限」因此完全不可信。
+    if (input.jumpPressed) this.jumpBuffer = JUMP_BUFFER;
+    else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
+    this.coyote = this.onGround ? COYOTE_TIME : Math.max(0, this.coyote - dt);
+
     // --- 冲刺状态 ---
     if (this.dashing) {
       this.dashTimer -= dt;
@@ -148,11 +156,7 @@ export class Player {
         this.vel.y *= JUMP_CUT;
       }
 
-      // --- 跳跃（coyote + 缓冲）---
-      if (input.jumpPressed) this.jumpBuffer = JUMP_BUFFER;
-      else this.jumpBuffer = Math.max(0, this.jumpBuffer - dt);
-      this.coyote = this.onGround ? COYOTE_TIME : Math.max(0, this.coyote - dt);
-
+      // --- 跳跃（coyote + 缓冲，计时器已在上面走过表）---
       if (this.jumpBuffer > 0 && this.coyote > 0) {
         this.vel.y = JUMP_VEL;
         this.jumpBuffer = 0;

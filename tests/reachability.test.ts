@@ -101,10 +101,13 @@ describe('关卡可通过性', () => {
     expect(stuck, `这些块跳不过去: ${stuck.join(', ')}`).toEqual([]);
   }, 120000);
 
-  it('难度 1~2 只靠跑跳就能过（尚未教会冲刺）', () => {
-    const easy = CHUNKS.filter(c => c.difficulty <= 2);
-    const stuck = easy.filter(c => !clearable(c, [RUN, JUMP])).map(c => c.id);
-    expect(stuck, `低难度块却必须冲刺: ${stuck.join(', ')}`).toEqual([]);
+  // 设计契约：坑宽按**纯跳**极限设，冲刺只做省时/吃分的捷径，不做通关门票。
+  // 冲刺的真实包络比直觉大得多（最优时机是起跳后 500ms、正在下落时冲，靠冲刺结束
+  // 时 vel.y 归零续滞空，能跨 9.5 格）——照那个极限画图，玩家按直觉起跳即冲只跨
+  // 得了 7 格，会掉进设计者以为"过得去"的坑里。所以门槛一律压在纯跳的 6.13 格内。
+  it('每一块都只靠跑跳就能过，冲刺不是通关门票', () => {
+    const stuck = CHUNKS.filter(c => !clearable(c, [RUN, JUMP])).map(c => c.id);
+    expect(stuck, `这些块必须冲刺才能过: ${stuck.join(', ')}`).toEqual([]);
   }, 120000);
 });
 

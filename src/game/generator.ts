@@ -35,9 +35,13 @@ export function difficultyForDistance(m: number): { min: number; max: number } {
  */
 export const MAX_SEAM_CLIMB = 2;
 
+/** 连续这么多个高难块（难度 ≥3）之后，强制塞一个喘息块。 */
+export const REST_AFTER = 4;
+
 export class ChunkStream {
   private rng: () => number;
   private lastId = '';
+  private hardRun = 0; // 连续高难块计数
 
   constructor(rng: () => number = Math.random) {
     this.rng = rng;
@@ -50,7 +54,12 @@ export class ChunkStream {
       prevExitY - c.entryY <= MAX_SEAM_CLIMB &&   // 往上：跳得上去
       c.entryY - prevExitY <= maxDrop;            // 往下：掉下去总是安全的
 
-    let pool = CHUNKS.filter(c => fits(c, 3, min, max));
+    // 末段难度是 { min: 3, max: 5 }——照字面走，1050m 之后**永远**不会再出
+    // 1~2 级块，长跑段落一路绷着、没有节奏起伏。连续若干个高难块后强制降档，
+    // 给玩家一口气；喘息块接不上当前高度时按下面的回退链正常处理。
+    const wantRest = this.hardRun >= REST_AFTER;
+    let pool = wantRest ? CHUNKS.filter(c => fits(c, 3, 1, 2)) : [];
+    if (!pool.length) pool = CHUNKS.filter(c => fits(c, 3, min, max));
     if (!pool.length) pool = CHUNKS.filter(c => fits(c, 3, 1, 5));
     if (!pool.length) pool = CHUNKS.filter(c => fits(c, 6, 1, 5));
     if (!pool.length) pool = [CHUNKS[0]];
@@ -59,6 +68,7 @@ export class ChunkStream {
     const finalPool = noRepeat.length ? noRepeat : pool;
     const pick = finalPool[Math.floor(this.rng() * finalPool.length)];
     this.lastId = pick.id;
+    this.hardRun = pick.difficulty >= 3 ? this.hardRun + 1 : 0;
     return pick;
   }
 }
