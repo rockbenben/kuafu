@@ -81,13 +81,13 @@ export const zhHans = {
   'share.tagline': '你能追上夸父吗？',
 
   'hint.run': '按住 → / D 向前奔逐',
-  'hint.jump': '空格 / ↑ 腾跃',
+  'hint.jump': '按住空格 / ↑ 跃得更远',
   'hint.dash': '掬泉续力 · Shift / J 疾冲',
   'hint.kill': 'Shift / J 疾冲撞碎 · 或跃起自上踩踏',
   'hint.score': '拾日光升倍率 · 路程 × 倍率 = 功业',
   // 触屏变体（粗指针设备显示，改说按钮而非键位）
   'hint.run.touch': '按住「进」向前奔逐',
-  'hint.jump.touch': '点「跃」腾跃',
+  'hint.jump.touch': '按住「跃」跃得更远',
   'hint.dash.touch': '掬泉续力 · 点「冲」疾冲',
   'hint.kill.touch': '点「冲」撞碎 · 或点「跃」自上踩踏',
   'hint.ult.touch': '大招已蓄满 · 点「跨」一步跨越一屏',
