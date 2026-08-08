@@ -51,7 +51,7 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 
 **Titles and sharing**: your glory earns a title — `Out of the Waste` → `Sun-chaser` → `Drinker of River and Wei` → `North to the Great Marsh` → `Kuafu's Resolve` → `Equal to the Sun`. On the results screen press `F` (on touch, tap the top half) to make a score card (ending art + glory + title + URL) you can share straight away.
 
-**Make it yours**: both the title and results screens carry a "your own runner" button — six built-in silhouettes (`Jade Rabbit`, `Yinglong`, `Xingtian`, `Hou Yi`, `Flying Apsara`, `Cat`), or hit "＋" to run as your own picture. The image is scaled down and kept in your browser's local storage — it is **never uploaded**. Single-frame runners get their gait synthesised — the legs swing while the head stays put, plus airborne stretch and dash lean — so even a headshot runs convincingly without making you dizzy.
+**Make it yours**: both the title and results screens carry a "your own runner" button — six built-in silhouettes (`Jade Rabbit`, `Yinglong`, `Xingtian`, `Hou Yi`, `Flying Apsara`, `Cat`), or hit "＋" to run as your own picture. **Use a PNG or SVG with a transparent background** — the runner is drawn standing on the ground against a silhouette scene, so an opaque image shows up as a rectangular slab. SVGs work even with only a `viewBox` and no `width`/`height`. The image is scaled down and kept in your browser's local storage — it is **never uploaded**. Single-frame runners get their gait synthesised — the legs swing while the head stays put, plus airborne stretch and dash lean — so even a headshot runs convincingly without making you dizzy.
 
 ![Results and title](docs/images/screenshot-ending.webp)
 
