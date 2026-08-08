@@ -59,6 +59,10 @@ export class Store {
   get muted(): boolean { return this.read('muted') === '1'; }
   set muted(v: boolean) { this.write('muted', v ? '1' : '0'); }
 
+  /** 自定义形象（已缩放归一的 dataURL）。空串 = 用内置素材。见 avatar.ts。 */
+  get avatar(): string { return this.read('avatar') ?? ''; }
+  set avatar(v: string) { if (v) this.write('avatar', v); else this.drop('avatar'); }
+
   /**
    * 用户是否**亲自**选过语种（在语言菜单里点过）。
    *

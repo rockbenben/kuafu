@@ -3,16 +3,74 @@ import type { Particles } from '../engine/particles';
 import { themeAt, rgb, posHash as hash } from './theme';
 import { drawBackground } from './background';
 import { drawProps } from './props';
-import { VIEW_W, WORLD_H, PLAYER_H } from '../game/constants';
+import { VIEW_W, WORLD_H, PLAYER_H, RUN_SPEED } from '../game/constants';
 import { EMPTY_ASSETS, type Assets } from './assets';
 import type { CameraFX } from './fx';
 import type { Popups } from './popups';
 import { fontHud } from './strings';
 import { uiLetterbox, clientToWorld } from './viewport';
+import { dangerLevel } from '../game/darkness';
 
 const RUN_PX_PER_FRAME = 22; // 每前进这么多像素切一帧奔跑动画（距离驱动，脚不打滑）
 const SPRITE_CHAR_PX = 220;  // 玩家素材"头到脚"归一高度（与 art/process.py CHAR_PX 一致）
 const NO_FX: CameraFX = { shakeX: 0, shakeY: 0, extraCamX: 0, zoom: 1, flash: 0 };
+
+/**
+ * 单帧形象的程序化律动。
+ *
+ * 内置夸父有 4 帧跑循环，换成预设或玩家自己传的图就只剩一张——不补动，跑起来
+ * 是一块木板在平移。给每个形象再画 3 帧跑循环治标不治本：玩家上传的图永远只有
+ * 一张，那条路走不通。所以改成对**任意单帧**施加变换，谁传的图都能动。
+ *
+ * 调用时 ctx 原点已在角色脚底中心、facing 的镜像也已应用，所以缩放/旋转都绕脚底
+ * 发生（人不会在空中打转），切变方向也自动跟着朝向翻转。
+ *
+ * 幅度全部压在 10% 以内：这是「看得出在动」与「像果冻」之间的界线，别放大。
+ */
+export function singleFrameMotion(
+  ctx: Pick<CanvasRenderingContext2D, 'translate' | 'rotate' | 'scale' | 'transform'>,
+  p: { dashing: boolean; onGround: boolean; vel: { y: number } },
+  running: boolean,
+  phasePx: number,
+  drawH: number,
+  speedK: number, // 0..1，当前水平速度 / RUN_SPEED
+) {
+  if (p.dashing) {
+    ctx.transform(1, 0, -0.2, 1, 0, 0); // 上身前倾切变
+    ctx.scale(1.1, 0.95);               // 横向拉长，压出速度感
+    return;
+  }
+  if (!p.onGround) {
+    // 腾空拉伸：越快越修长，落地帧自然收回（squash & stretch 的 stretch 半边）
+    const k = Math.min(1, Math.abs(p.vel.y) / 800);
+    ctx.scale(1 - k * 0.06, 1 + k * 0.08);
+    return;
+  }
+  if (!running) return; // 站定时相位不推进，再施加就会歪着定住
+  // 奔跑：距离驱动的正弦步频，只保留**绕高枢轴的单一摆动**。
+  //
+  // 这里是三轮实测逼出来的。整体变换动不了肢体，凡是加在整体上的效果都会同等
+  // 地作用到头上，而头一动就晃眼——彩色形象尤其明显：黑剪影没有内部特征点，
+  // 头挪几个像素看不出来，卡通脸上的眼睛一动就被察觉。量化下来（角色实际
+  // 只有 47.6px 高）：
+  //   绕脚底旋转 + 切变     头动 ≈ 脚摆，整个上半身在甩
+  //   绕肩(0.7) + 颠簸 + 拉伸  头动 2.4px vs 脚摆 2.5px —— 仍是 1:1，白改
+  //   绕 0.88 单摆（本方案）   头动 1.3px vs 脚摆 4.2px —— 1:3.2
+  // 竖直颠簸(bob)与挤压拉伸(scale)贡献的全是**头的上下位移**，而人眼对垂直
+  // 跳动最敏感，所以两者一并砍掉；跑动感全交给绕近头顶的摆动，腿摆幅反而更大。
+  //
+  // 速度同时进两处：相位本就按位移累积（跑得快步频自然快），这里再让**幅度与
+  // 前倾**跟上——否则起步慢跑和全速疾奔长得一模一样，加速过程没有体感。
+  // 前倾是随速度单调变化的静态量、不随步频摆动，所以只增加速度感、不晃眼；
+  // 全速 0.06 也刻意小于冲刺的 0.2，两种状态才拉得开层次。
+  const k = Math.max(0, Math.min(1, speedK));
+  const s = Math.sin((phasePx / RUN_PX_PER_FRAME) * Math.PI);
+  const pivotY = -drawH * 0.88; // 近头顶：让头落在旋转中心附近
+  ctx.transform(1, 0, -0.06 * k, 1, 0, 0); // 越快越前倾
+  ctx.translate(0, pivotY);
+  ctx.rotate(s * 0.1 * (0.4 + 0.6 * k));   // 慢跑小碎步，全速大摆
+  ctx.translate(0, -pivotY);
+}
 
 export class Renderer {
   private ctx: CanvasRenderingContext2D;
@@ -412,6 +470,13 @@ export class Renderer {
       ctx.save();
       ctx.translate(px + p.rect.w / 2, py + p.rect.h);
       if (p.facing === -1) ctx.scale(-1, 1);
+      // 没有跑循环帧 = 当前是预设或玩家自传的单帧形象，补程序化律动
+      if (!runFrames.length) {
+        singleFrameMotion(
+          ctx, p, p.onGround && !p.dashing && speed >= 12,
+          this.runPhasePx, drawH, speed / RUN_SPEED,
+        );
+      }
       ctx.drawImage(pSprite, -drawW / 2, -drawH, drawW, drawH);
       ctx.restore();
     } else {
@@ -506,6 +571,21 @@ export class Renderer {
     }
 
     this.vignette(ctx, VW);
+
+    // 长夜逼近的分级告警：冷靛暗角随危险度加重、脉动随之加急。
+    // 叠在上面那层中性暗角之上而不是替换它——那层是常驻构图，这层是状态告警。
+    // 长夜本体虽然画得足，但只在它进入视野时才看得见；这层在它还没露头时就先示警。
+    const danger = dangerLevel(p.pos.x, game.darkness.x);
+    if (danger > 0.02 && game.state === 'playing') {
+      const pulse = 0.62 + 0.38 * Math.sin(t * (4 + 7 * danger));
+      const dg = ctx.createRadialGradient(
+        VW / 2, WORLD_H * 0.52, WORLD_H * 0.34, VW / 2, WORLD_H * 0.52, WORLD_H * 1.05,
+      );
+      dg.addColorStop(0, 'rgba(10,6,26,0)');
+      dg.addColorStop(1, `rgba(10,6,26,${(0.5 * danger * pulse).toFixed(3)})`);
+      ctx.fillStyle = dg;
+      ctx.fillRect(0, 0, VW, WORLD_H);
+    }
 
     // 浮动反馈文字（拾光/续力/击杀）——在暗角之上，世界坐标
     if (popups) popups.draw(ctx, cam, `16px ${fontHud()}`);
