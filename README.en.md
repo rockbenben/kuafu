@@ -43,6 +43,8 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 
 **Enemies**: `drought-fiends` (demons of drought) and `sunbirds` (the crows of the ten suns). Hit them while dashing or striding to destroy them for points; touch them bare-handed and you die.
 
+**See how you died**: death no longer cuts away mid-frame. The world stops, the camera pushes in, and your runner goes down where they fell; drop into a chasm and the camera follows you down so you can see which pit took you. The cause surfaces first, then the picture sinks into the long night and the ending art and your score rise out of the black. Press any key to skip ahead.
+
 **The long night closes in**: the night behind you keeps accelerating and will eventually outrun you. Once it draws near the screen darkens at the edges and a heartbeat sets in, quickening the closer it gets. When you hear it, stop grabbing for sunlight.
 
 **The world follows the story**: water appears through the river and marsh stretches, heat haze shimmers in the sun's scorch, and the closing chapter reveals the peach grove as the sun sinks. Cross the final chapter and it still does not stop — **moonlit Peach Forest → starfields of the Great Wilderness → the return of first light**, seen only by those who travel far.
