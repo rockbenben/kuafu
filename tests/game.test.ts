@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { Game } from '../src/game/game';
 import { dailySeed } from '../src/game/generator';
-import { DT, KILL_BONUS, MAX_FALL } from '../src/game/constants';
+import { DT, KILL_BONUS, MAX_FALL, DYING_TIME, DEATH_FADE } from '../src/game/constants';
 import type { InputState } from '../src/game/types';
 import type { Enemy } from '../src/game/enemies';
 
@@ -245,5 +245,80 @@ describe('Game 跨步后无敌', () => {
     g.level.spikes.push({ x: g.player.pos.x, y: g.player.pos.y, w: 32, h: 20 });
     g.update(IDLE, DT);
     expect(g.state).toBe('playing');
+  });
+});
+
+describe('死亡定格回放', () => {
+  const kill = (g: Game) => {
+    let n = 0;
+    while (g.state === 'playing' && n < 60 * 60) { g.update(IDLE, DT); n++; }
+    expect(g.state).toBe('dead');
+  };
+
+  // 回放存在的唯一理由：死亡那一刻的画面得留在屏幕上一会儿。
+  // 渲染层与 UI 层都靠 game.dying 决定「结局图/成绩要不要盖上去」，
+  // 一旦它恒为 false，结算页又会当帧盖满，而这在测试里是看不见的。
+  it('死亡即进入回放，倒数走完才交给结算页', () => {
+    const g = new Game(1);
+    g.start();
+    kill(g);
+    expect(g.dying).toBe(true);
+    expect(g.dyingT).toBeCloseTo(DYING_TIME, 5);
+
+    // 已 dead，但计时仍须推进——否则结算页永不接管
+    g.update(IDLE, DT);
+    expect(g.dyingT).toBeLessThan(DYING_TIME);
+
+    let n = 0;
+    while (g.dying && n < 60 * 5) { g.update(IDLE, DT); n++; }
+    expect(g.dying).toBe(false);
+    expect(g.dyingT).toBe(0);
+    expect(g.state).toBe('dead'); // 回放结束不改变死亡本身
+  });
+
+  // 跳过不能直接归零：那会从死亡现场一刀切到结算页，正是黑场要消除的突兀。
+  // 语义是「快进到最后那次淡入」，不是「立刻结束」。
+  it('可跳过：快进到收束的淡入，而非一刀切走', () => {
+    const g = new Game(1);
+    g.start();
+    kill(g);
+    g.skipDying();
+    expect(g.dyingT).toBeLessThanOrEqual(DEATH_FADE); // 确实快进了
+    expect(g.dying).toBe(true);                       // 但仍在淡入中
+    let n = 0;
+    while (g.dying && n < 60 * 3) { g.update(IDLE, DT); n++; }
+    expect(g.dying).toBe(false);                      // 淡入走完自然结束
+  });
+
+  it('重复跳过不会把计时推回去', () => {
+    const g = new Game(1);
+    g.start();
+    kill(g);
+    g.skipDying();
+    const first = g.dyingT;
+    g.update(IDLE, DT);
+    g.skipDying();
+    expect(g.dyingT).toBeLessThan(first);
+  });
+
+  it('重开清掉回放状态，不残留到下一局', () => {
+    const g = new Game(1);
+    g.start();
+    kill(g);
+    expect(g.dying).toBe(true);
+    g.start();
+    expect(g.dying).toBe(false);
+    expect(g.dyingT).toBe(0);
+  });
+
+  it('回放不吞掉成绩：runStats 在进入回放时就已定稿', () => {
+    const g = new Game(1);
+    g.start();
+    kill(g);
+    expect(g.runStats).not.toBeNull();
+    const snapshot = { ...g.runStats! };
+    let n = 0;
+    while (g.dying && n < 60 * 5) { g.update(IDLE, DT); n++; }
+    expect(g.runStats).toEqual(snapshot);
   });
 });

@@ -6,7 +6,7 @@ import { Score } from './score';
 import { Enemies } from './enemies';
 import { aabbOverlap } from './collision';
 import type { InputState, Rect } from './types';
-import { TILE, WORLD_H, VIEW_W, AIRTIME_BONUS_SEC, CHARGE_PER_MOTE, CHARGE_PER_KILL, STRIDE_KILL_BONUS } from './constants';
+import { TILE, WORLD_H, VIEW_W, AIRTIME_BONUS_SEC, CHARGE_PER_MOTE, CHARGE_PER_KILL, STRIDE_KILL_BONUS, DYING_TIME, DEATH_FADE } from './constants';
 
 const SPAWN = { x: 64, y: 13 * TILE - 28 }; // 平地块地面行 14 之上
 const PICKUP_R = 24;
@@ -22,6 +22,17 @@ export class Game {
   enemies!: Enemies;
   elapsed = 0;
   deathCause: 'spike' | 'fall' | 'darkness' | 'enemy' | null = null;
+  dyingT = 0; // 死亡定格回放的剩余秒数（见 DYING_TIME）
+
+  /** 定格回放中：世界画面停在死亡那一刻，结算页尚未接管。 */
+  get dying(): boolean { return this.dyingT > 0; }
+
+  /**
+   * 跳过回放——玩家已经看清了，别拦着他重开。
+   * 但不能直接归零：那会从死亡现场一刀切到结算页，正是黑场要消除的突兀。
+   * 留到 DEATH_FADE，让跳过的人也走完最后那次淡入。
+   */
+  skipDying() { this.dyingT = Math.min(this.dyingT, DEATH_FADE); }
   runStats: RunStats | null = null;
   endingSeed = 0; // 死亡时随机，渲染层据此选一张结局图
 
@@ -98,6 +109,7 @@ export class Game {
     this.airtime = 0;
     this.charge = 0;
     this.deathCause = null;
+    this.dyingT = 0;
     this.hasJumped = this.hasDashed = false;
     this.kills = 0;
     this.nextMilestone = 0;
@@ -107,6 +119,11 @@ export class Game {
 
   /** 叙事旁白：当前该显示的《山海经》碎片 key 及其淡入淡出透明度，无则 null。 */
   get narration(): { key: string; alpha: number } | null {
+    // 回放期间也留着：死亡当口正念着的那句《山海经》被一刀掐掉，
+    // 叙事就断在半截上；让它与死因并置，一局才收得住。
+    if (this.state === 'dead' && this.dying && this.narrationKey && this.narrationTimer > 0) {
+      return { key: this.narrationKey, alpha: 0.55 };
+    }
     if (this.state !== 'playing' || !this.narrationKey || this.narrationTimer <= 0) return null;
     const age = Game.NARRATION_DUR - this.narrationTimer;
     const alpha = Math.max(0, Math.min(1, age / 0.6, this.narrationTimer / 1.6));
@@ -150,6 +167,7 @@ export class Game {
 
   private die(cause: 'spike' | 'fall' | 'darkness' | 'enemy') {
     this.state = 'dead';
+    this.dyingT = DYING_TIME; // 先定格回放，结算页稍后接管
     this.deathCause = cause;
     this.justDied = true;
     this.endingSeed = Math.floor(Math.random() * 997);
@@ -162,7 +180,11 @@ export class Game {
 
   update(input: InputState, dt: number) {
     this.justCollectedMote = this.justCollectedCrystal = this.justDied = this.justKilledEnemy = this.justStrided = false;
-    if (this.state !== 'playing') return;
+    if (this.state !== 'playing') {
+      // 死了也要继续走表：定格回放要靠它倒数，否则结算页永远不接管
+      if (this.dyingT > 0) this.dyingT = Math.max(0, this.dyingT - dt);
+      return;
+    }
 
     this.elapsed += dt;
     this.level.ensure(this.cameraX + VIEW_W * 2, this.score.distanceM);

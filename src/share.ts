@@ -1,8 +1,17 @@
-import { t, rankKeyFor, fontKai } from './render/strings';
+import { t, rankKeyFor, fontKai, type StringKey } from './render/strings';
+
+/** 死因 → 文案键。与 ui.ts 的 DEATH_KEY 同源，分享卡也该说清是怎么终结的。 */
+const DEATH_KEY: Record<string, StringKey> = {
+  spike: 'death.spike',
+  fall: 'death.fall',
+  darkness: 'death.darkness',
+  enemy: 'death.enemy',
+};
 
 /** 分享成绩：生成成绩卡图，移动端走系统分享(含图)，桌面端复制文案+下载卡片。 */
 export async function shareScore(
   distanceM: number, score: number, best: number, endingImg: HTMLImageElement | null,
+  deathCause: string | null = null,
 ): Promise<'shared' | 'copied' | 'failed'> {
   // 剥掉 ?lang=：那是发送方自己的语种覆盖，不该跟着链接强加给每一位接收者
   // （它在 pickLocale 里优先级最高，会盖过对方的浏览器语言与亲选偏好）。
@@ -11,7 +20,9 @@ export async function shareScore(
   shareUrl.searchParams.delete('lang');
   const url = shareUrl.toString().replace(/\?$/, '');
   const rank = t(rankKeyFor(score));
-  const text = `${t('share.title')}｜${t('title.rank')}「${rank}」· ${t('hud.score')} ${score}（${t('hud.dist2')} ${distanceM} ${t('hud.dist')}）｜${t('share.tagline')}`;
+  // 死因是这一局的结局，卡片与文案都该带上——只报分数，故事就少了收尾那一句
+  const cause = deathCause ? t(DEATH_KEY[deathCause] ?? 'death.darkness') : '';
+  const text = `${t('share.title')}｜${t('title.rank')}「${rank}」· ${t('hud.score')} ${score}（${t('hud.dist2')} ${distanceM} ${t('hud.dist')}）${cause ? `· ${cause}` : ''}｜${t('share.tagline')}`;
 
   // 生成成绩卡（结局图 + 分数）
   let file: File | null = null;
@@ -39,6 +50,13 @@ export async function shareScore(
     x.font = `44px ${fontKai()}`;
     x.fillStyle = 'rgba(255,220,150,0.95)';
     x.fillText(`「${rank}」`, W / 2, 300);
+    if (cause) {
+      // 别压太暗：这是卡片上唯一交代「怎么结束的」那一句，
+      // 30px/0.7 贴在亮结局图上几乎读不出来，等于白写
+      x.font = `32px ${fontKai()}`;
+      x.fillStyle = 'rgba(250,240,225,0.85)';
+      x.fillText(cause, W / 2, 350);
+    }
     x.font = `36px ${fontKai()}`;
     x.fillStyle = 'rgba(255,245,230,0.92)';
     x.fillText(`${t('hud.dist2')} ${distanceM} ${t('hud.dist')}　·　${t('death.best')} ${best}`, W / 2, 400);

@@ -3,7 +3,7 @@ import type { Particles } from '../engine/particles';
 import { themeAt, rgb, posHash as hash } from './theme';
 import { drawBackground } from './background';
 import { drawProps } from './props';
-import { VIEW_W, WORLD_H, PLAYER_H, RUN_SPEED } from '../game/constants';
+import { VIEW_W, WORLD_H, PLAYER_H, RUN_SPEED, DEATH_FADE, DEATH_BLACKOUT, DYING_TIME } from '../game/constants';
 import { EMPTY_ASSETS, type Assets } from './assets';
 import type { CameraFX } from './fx';
 import type { Popups } from './popups';
@@ -14,6 +14,43 @@ import { dangerLevel } from '../game/darkness';
 const RUN_PX_PER_FRAME = 22; // 每前进这么多像素切一帧奔跑动画（距离驱动，脚不打滑）
 const SPRITE_CHAR_PX = 220;  // 玩家素材"头到脚"归一高度（与 art/process.py CHAR_PX 一致）
 const NO_FX: CameraFX = { shakeX: 0, shakeY: 0, extraCamX: 0, zoom: 1, flash: 0 };
+
+/**
+ * 坠亡定格回放时镜头下带的距离。
+ *
+ * 死亡判定是 `pos.y > WORLD_H + 64`，人物落点因此恒在世界底之下一点点
+ * （再往下最多多掉一帧，MAX_FALL/60 ≈ 15px）。把它压回屏幕约七成高的位置，
+ * 既完整露出人物，又还留着上方那道吞了他的沟——只看见人不看见沟，就说不清死因了。
+ */
+/**
+ * 死亡姿态：让人物倒下去。
+ *
+ * 此前死亡只是把最后一帧冻住，人物保持着奔跑或腾空的姿势僵在半空——看着不像
+ * 死了，像游戏卡住了。这里绕脚跟把他放倒，坠亡则改成持续翻滚（人还在下落，
+ * 「倒地」无从谈起）。
+ *
+ * 调用时 ctx 原点已在脚底中心、facing 的镜像也已应用，所以正角度恒为「向前扑倒」，
+ * 朝左跑时会自动镜像成向左倒，不必自己判朝向。
+ */
+export function deathPose(
+  ctx: Pick<CanvasRenderingContext2D, 'rotate' | 'translate'>,
+  cause: string | null,
+  progress: number, // 0→1 回放进度
+) {
+  const k = Math.max(0, Math.min(1, progress));
+  if (cause === 'fall') {
+    ctx.rotate(k * 3.2); // 坠落翻滚，越掉越偏
+    return;
+  }
+  // 前 1/4 段时间里扑倒到位，之后定住不动（ease-out，收尾不抖）
+  const t = Math.min(1, k * 4);
+  ctx.rotate((1 - (1 - t) * (1 - t)) * 1.42);
+}
+
+export function fallCamDrop(playerY: number): number {
+  const want = playerY - WORLD_H * 0.72;
+  return Math.max(0, Math.min(WORLD_H * 0.32, want));
+}
 
 /**
  * 单帧形象的程序化律动。
@@ -77,6 +114,8 @@ export class Renderer {
   private trail: { x: number; y: number; a: number; facing: 1 | -1 }[] = [];
   private runPhasePx = 0;
   private lastPlayerX: number | null = null;
+  private camDropY = 0;        // 坠亡回放的镜头下带量（平滑推进，见 render）
+  private lastRenderT = 0;     // 上一帧时刻，供 render 内部求帧间隔
   private vw = VIEW_W;      // 当前有效视口宽度（按窗口比例自适应，铺满宽屏）
 
   constructor(private canvas: HTMLCanvasElement, private assets: Assets = EMPTY_ASSETS) {
@@ -98,16 +137,29 @@ export class Renderer {
     const ch = canvas.height || WORLD_H;
     const VW = Math.max(820, Math.min(1400, WORLD_H * canvas.width / ch));
     this.vw = VW;
-    // 动态相机：缩放（死亡拉近）+ 屏幕震动
+    // 动态相机：缩放（死亡拉近）+ 屏幕震动 + 坠亡回放的纵向下带
     const baseScale = Math.min(canvas.width / VW, canvas.height / WORLD_H);
     const zscale = baseScale * camFx.zoom;
+    // 坠崖判定是「掉出世界底 64px」，所以定格那一刻人物早已在画面之外，
+    // 回放只剩一道空沟、看不见自己。把镜头往下带一截，让尸身重新入画。
+    // 只对 fall 生效：撞刺/被噬/被长夜追上时人物本就在原地，移了反而丢掉现场。
+    //
+    // 必须平滑地推下去：直接赋值等于「啪」地切了个机位，读作穿帮而不是运镜。
+    // 这里用帧间隔自行插值——render 拿不到 dt，就地从 performance.now 求。
+    const dtR = Math.min(0.05, Math.max(0, t - this.lastRenderT));
+    this.lastRenderT = t;
+    const camDropTarget = game.dying && game.deathCause === 'fall' ? fallCamDrop(game.player.pos.y) : 0;
+    this.camDropY += (camDropTarget - this.camDropY) * Math.min(1, dtR * 6);
+    if (camDropTarget === 0 && this.camDropY < 0.5) this.camDropY = 0; // 收敛，免得永远拖个尾巴
+    const camDropY = this.camDropY;
     const offX = (canvas.width - VW * zscale) / 2 + camFx.shakeX * baseScale;
-    const offY = (canvas.height - WORLD_H * zscale) / 2 + camFx.shakeY * baseScale;
+    const offY = (canvas.height - WORLD_H * zscale) / 2 + camFx.shakeY * baseScale - camDropY * zscale;
     ctx.setTransform(zscale, 0, 0, zscale, offX, offY);
 
     const theme = themeAt(game.score.distanceM);
     const cam = game.cameraX + camFx.extraCamX; // 相机前瞻
     drawBackground(ctx, cam, theme, VW, WORLD_H, assets, game.state === 'title', t, game.score.distanceM);
+
     // 前景装饰景物层（仅游玩时，标题用美术图）
     if (game.state !== 'title') drawProps(ctx, assets, game.score.distanceM, cam, theme, VW, WORLD_H);
 
@@ -445,6 +497,80 @@ export class Renderer {
       ctx.restore();
     }
 
+    // 深渊：坠亡回放把镜头带到了世界底之下，那里本来什么都没有——不补东西就是
+    // 一条齐刷刷的黑边横在画面下方，像渲染漏了一块。既然文案写着「坠入深渊」，
+    // 就把深渊真的画出来。
+    //
+    // 必须画在**地形之后**：渐变要压在地形底边上把那道硬边化开，画在地形之前
+    // 会被地形整个盖住，白做。玩家随后绘制，于是人是落在深渊里而不是被它埋掉。
+    if (camDropY > 0) {
+      const top = WORLD_H - 42;
+      const depth = camDropY + WORLD_H * 0.7;
+      // 1) 崖壁：把贴着世界底的那排地形块**原样向下延伸**。
+      // 上一版在这儿凭空画了几根柱子，等于另起一套语汇，看着就是「一堆黑条」；
+      // 而这道沟的两侧本就是地形块的侧面，让土体自己长下去，才读得出
+      // 「同一片大地裂开了一道深沟」。没有地形的地方自然不长——那正是沟口。
+      const wallH = depth * 0.9;
+      for (const s of solids) {
+        const x = s.x - cam;
+        if (x + s.w < -4 || x > VW + 4) continue;
+        if (s.y + s.h < WORLD_H - 2) continue;  // 只延伸贴着世界底的那排
+        const wg = ctx.createLinearGradient(0, WORLD_H, 0, WORLD_H + wallH);
+        wg.addColorStop(0, rgb([40, 26, 13]));  // 与土体同色，接缝处看不出来
+        wg.addColorStop(0.28, rgb([25, 16, 9]));
+        wg.addColorStop(1, 'rgba(3,2,5,0)');
+        ctx.fillStyle = wg;
+        ctx.fillRect(x, WORLD_H, s.w, wallH);
+        // 崖面竖向剥落纹：沿用地形的裂隙语言，让延伸段不是一块平板
+        ctx.strokeStyle = 'rgba(12,7,3,0.4)';
+        ctx.lineWidth = 1.2;
+        for (let wx = Math.ceil(s.x / 58) * 58; wx < s.x + s.w; wx += 58) {
+          const h1 = hash(wx + 21), h2 = hash(wx + 29);
+          const jx = wx - cam + (h1 * 10 - 5);
+          const len = wallH * (0.25 + h2 * 0.4);
+          ctx.beginPath();
+          ctx.moveTo(jx, WORLD_H + 4);
+          ctx.lineTo(jx + (h2 * 7 - 3.5), WORLD_H + len * 0.6);
+          ctx.lineTo(jx + (h1 * 6 - 3), WORLD_H + len);
+          ctx.stroke();
+        }
+      }
+      // 2) 雾幕：压在崖壁之上，让深处融进黑暗，也把地形底边那道硬线化开
+      const vg = ctx.createLinearGradient(0, top, 0, WORLD_H + depth);
+      const atFloor = 42 / (depth + 42); // 世界底边在这条渐变上的位置
+      vg.addColorStop(0, 'rgba(14,9,20,0)');
+      vg.addColorStop(atFloor * 0.6, 'rgba(12,8,18,0.3)');
+      vg.addColorStop(atFloor, 'rgba(10,6,15,0.55)');
+      vg.addColorStop(Math.min(1, atFloor + 0.42), 'rgba(5,3,9,0.9)');
+      vg.addColorStop(1, 'rgba(2,1,4,1)');
+      ctx.fillStyle = vg;
+      ctx.fillRect(0, top, VW, depth + 42);
+      ctx.save();
+      ctx.globalCompositeOperation = 'lighter';
+      // 3) 上浮的尘：让这片黑是「活的深渊」而非一块死色
+      for (let i = 0; i < 16; i++) {
+        const hx = hash(i * 91 + 7);
+        const dx = ((hx * 613) % 1000) / 1000 * VW;
+        const ph = (t * 0.2 + i * 0.11) % 1;
+        const dy = WORLD_H + depth * (1 - ph) * 0.85;
+        const a = 0.2 * (1 - ph) * (0.5 + 0.5 * Math.sin(t * 2 + i));
+        ctx.fillStyle = `rgba(180,160,215,${a.toFixed(3)})`;
+        ctx.fillRect(dx, dy, 2, 2);
+      }
+      // 4) 坠者身上最后一点天光。
+      // 这一步不能省：人物是纯黑剪影，落进纯黑深渊会整个消失，屏幕上只剩两只
+      // 发光的眼睛在飘。垫一圈冷光，剪影才重新被「衬」出来。
+      const gx = p.pos.x + p.rect.w / 2 - cam;
+      const gy = p.pos.y + p.rect.h / 2;
+      const halo = ctx.createRadialGradient(gx, gy, 0, gx, gy, 78);
+      halo.addColorStop(0, 'rgba(146,168,232,0.30)');
+      halo.addColorStop(0.55, 'rgba(120,140,210,0.12)');
+      halo.addColorStop(1, 'rgba(120,140,210,0)');
+      ctx.fillStyle = halo;
+      ctx.fillRect(gx - 78, gy - 78, 156, 156);
+      ctx.restore();
+    }
+
     // 玩家本体
     const px = p.pos.x - cam, py = p.pos.y;
     // 奔跑动画相位：按世界坐标水平位移推进（着地且有移动才推进；离地则冻结在当前帧）
@@ -470,8 +596,11 @@ export class Renderer {
       ctx.save();
       ctx.translate(px + p.rect.w / 2, py + p.rect.h);
       if (p.facing === -1) ctx.scale(-1, 1);
-      // 没有跑循环帧 = 当前是预设或玩家自传的单帧形象，补程序化律动
-      if (!runFrames.length) {
+      // 死亡回放优先：此刻该演的是倒下，不是跑步律动
+      if (game.dying) {
+        deathPose(ctx, game.deathCause, 1 - game.dyingT / DYING_TIME);
+      } else if (!runFrames.length) {
+        // 没有跑循环帧 = 当前是预设或玩家自传的单帧形象，补程序化律动
         singleFrameMotion(
           ctx, p, p.onGround && !p.dashing && speed >= 12,
           this.runPhasePx, drawH, speed / RUN_SPEED,
@@ -590,8 +719,24 @@ export class Renderer {
     // 浮动反馈文字（拾光/续力/击杀）——在暗角之上，世界坐标
     if (popups) popups.draw(ctx, cam, `16px ${fontHud()}`);
 
-    // 死亡结局图（弃杖化邓林，多种随机）覆盖全屏 + 压暗以承托文字；缺图则仅压暗定格画面
-    if (game.state === 'dead') {
+    // 收束第一道：黑场。把死亡现场整屏渐暗到全黑，再让结局图从黑里浮起——
+    // 现场可能是近黑的深渊，结局图却是明亮的桃林逆光，直接溶接两头都对不上。
+    if (game.dying && game.dyingT < DEATH_BLACKOUT) {
+      const k = Math.min(1, (DEATH_BLACKOUT - game.dyingT) / (DEATH_BLACKOUT - DEATH_FADE));
+      ctx.fillStyle = `rgba(0,0,0,${k.toFixed(3)})`;
+      ctx.fillRect(-VW, -WORLD_H, VW * 3, WORLD_H * 3);
+    }
+
+    // 收束第二道：结局图（弃杖化邓林，多种随机）自黑场中浮起
+    const endingAlpha = game.dying
+      ? Math.max(0, 1 - game.dyingT / DEATH_FADE)
+      : 1;
+    if (game.state === 'dead' && endingAlpha > 0) {
+      ctx.save();
+      ctx.globalAlpha = endingAlpha;
+      // 结局图是覆盖全屏的收束层，不属于世界，得把坠亡时的镜头下带抵消掉——
+      // 否则它跟着镜头一起下移，屏幕底部露出一条黑带。
+      if (camDropY) ctx.translate(0, camDropY);
       const arts = assets.endingArts;
       const img = arts.length ? arts[game.endingSeed % arts.length] : null;
       if (img) {
@@ -606,6 +751,7 @@ export class Renderer {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
       }
       ctx.fillRect(0, 0, VW, WORLD_H);
+      ctx.restore();
     }
 
     // 全屏白闪（击杀特写）——覆盖到变换之外，避免缩放/震动露边

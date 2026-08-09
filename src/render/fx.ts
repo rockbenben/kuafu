@@ -25,15 +25,17 @@ export class FX {
   triggerFlash(amount: number) { this.flash = Math.min(1, this.flash + amount); }
   get hitstopActive() { return this.hitstopT > 0; }
 
-  update(dt: number, playerVx: number, dead: boolean) {
+  update(dt: number, playerVx: number, dead: boolean, dying = false) {
     this.trauma = Math.max(0, this.trauma - dt * 1.9);
     if (this.hitstopT > 0) this.hitstopT = Math.max(0, this.hitstopT - dt);
     this.punchZoom = Math.max(0, this.punchZoom - dt * 5);
     this.flash = Math.max(0, this.flash - dt * 6); // ~0.16s 内闪回
     const targetLook = Math.max(-40, Math.min(150, playerVx * 0.2));
     this.lookAhead += (targetLook - this.lookAhead) * Math.min(1, dt * 6);
-    const targetZoom = dead ? 1.07 : 1;
-    this.zoom += (targetZoom - this.zoom) * Math.min(1, dt * 5);
+    // 定格回放推得更近（1.2）：镜头往死亡现场压过去，看清是撞在哪根刺上、
+    // 被哪只金乌啄下来的；回放结束再松回结算页的 1.07。
+    const targetZoom = dying ? 1.2 : dead ? 1.07 : 1;
+    this.zoom += (targetZoom - this.zoom) * Math.min(1, dt * (dying ? 3 : 5));
   }
 
   camera(): CameraFX {

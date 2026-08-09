@@ -15,7 +15,7 @@ import { Popups } from './render/popups';
 import { t, setLocale, pickLocale, LOCALES, type Locale, type StringKey } from './render/strings';
 import { loadAvatar, saveAvatar, clearAvatar, selectPreset, currentAvatarId, presetUrl, PRESETS } from './game/avatar';
 import { worldToClient } from './render/viewport';
-import { MOTE_SCORE, KILL_BONUS, WORLD_H } from './game/constants';
+import { MOTE_SCORE, KILL_BONUS, WORLD_H, DEATH_FADE } from './game/constants';
 import { dailySeed } from './game/generator';
 import { dangerLevel } from './game/darkness';
 import { submitScore, fetchRank, fetchTop, isOnline, type BoardState } from './api/leaderboard';
@@ -251,6 +251,7 @@ let langMenuOpen = false;
 let sharing = false;
 let deadTapGuardUntil = 0; // 死亡瞬间起短暂锁触，防连点误触分享/重开、先看清成绩
 let heartbeatT = 0;        // 长夜逼近的心跳计时（见主循环里的告警段）
+let knellPending = false;  // 死亡落幕音待触发（黑场转结局图那一沿只响一次）
 // 触屏设备（粗指针）：用于竖屏旋转提示
 const isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 /** 竖持手机：旋转提示铺满整屏，此时任何浮层都看不见，不该被打开。 */
@@ -266,7 +267,7 @@ function doShare() {
   if (game.state !== 'dead' || !game.runStats || sharing) return;
   sharing = true;
   const img = assets.endingArts.length ? assets.endingArts[game.endingSeed % assets.endingArts.length] : null;
-  void shareScore(game.runStats.distanceM, game.runStats.score, best, img).then(r => {
+  void shareScore(game.runStats.distanceM, game.runStats.score, best, img, game.deathCause).then(r => {
     sharing = false;
     if (r === 'copied') {
       const p = game.player;
@@ -332,6 +333,8 @@ window.addEventListener('keydown', e => {
   }
   const util = e.code === 'KeyM' || e.code === 'KeyT'; // 功能键不触发开局
   if (game.state === 'title' && !util) game.start();
+  // 回放期间按键只作「我看清了，快进」，不直接重开——否则手快的人根本见不到死亡现场
+  else if (game.state === 'dead' && game.dying && !util) game.skipDying();
   else if (game.state === 'dead' && (e.code === 'KeyR' || e.code === 'Space') && performance.now() >= deadTapGuardUntil) game.start();
   if (e.code === 'KeyM') store.muted = audio.toggleMute();
 });
@@ -420,6 +423,7 @@ canvas.addEventListener('pointerdown', e => {
 
   if (game.state === 'dead') {
     audio.unlock();
+    if (game.dying) { game.skipDying(); return; }       // 回放中：先快进，别误当成重开
     if (fy < 0.42) doShare();                          // 上半屏 → 分享成绩
     else game.start();                                 // 下半屏 → 再逐一程
   }
@@ -451,7 +455,7 @@ function drawFrame() {
 const loop = createLoop(
   dt => {
     // FX 每帧推进（含衰减/顿帧计时）；顿帧期间冻结游戏逻辑增强打击感
-    fx.update(dt, game.player.vel.x, game.state === 'dead');
+    fx.update(dt, game.player.vel.x, game.state === 'dead', game.dying);
     // 语言提示只在标题页倒数：进了局就不该再占视线
     if (langHintLeft > 0 && game.state === 'title') langHintLeft = Math.max(0, langHintLeft - dt);
     // 始终消费输入边沿，避免顿帧期间按键被缓冲、解冻后爆发
@@ -520,7 +524,14 @@ const loop = createLoop(
     }
     if (wasChargeReady !== game.chargeReady && game.chargeReady) audio.charged(); // 刚充满神力
     wasChargeReady = game.chargeReady;
+    // 落幕音：黑场转入结局图那一刻敲一记。四拍收束此前是纯视觉的——
+    // 画面已经沉进黑里，耳朵却还停在上一秒。用「跨过 DEATH_FADE」这一沿触发，只响一次。
+    if (game.state === 'dead' && knellPending && game.dyingT <= DEATH_FADE) {
+      audio.knell();
+      knellPending = false;
+    }
     if (game.justDied) {
+      knellPending = true;
       deadTapGuardUntil = performance.now() + 550; // 死后约半秒内忽略点触，先看清成绩
       particles.spawn(cx, cy - 14, { color: '#06060a', count: 26, spread: 200, life: 0.8 });
       particles.spawn(cx, cy - 14, { color: rgb(theme.glow, 0.9), count: 14, spread: 220, life: 0.7 });
@@ -543,7 +554,9 @@ const loop = createLoop(
     // 结算页也给换形象入口：那是玩家看着自己成绩、最想换个人再来一局的时刻。
     // 但它是 HTML（z-index 10），会压在 canvas 画的帮助浮层/语言菜单/旋转提示之上——
     // 那三者一起时必须让位，否则一排形象圆就叠在浮层文字上。同 touch.setVisible 的守卫。
-    const avOn = (game.state === 'title' || game.state === 'dead')
+    // 死亡定格回放期间也不上：那几百毫秒是留给「看清自己怎么死的」，
+    // 一排形象圆浮在死亡现场上只会抢走注意力
+    const avOn = (game.state === 'title' || (game.state === 'dead' && !game.dying))
       && !helpOpen && !langMenuOpen && !rotateHintUp();
     avBar?.classList.toggle('on', avOn);
     if (avOn) placeAvBar(game.state);

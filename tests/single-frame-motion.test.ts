@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { singleFrameMotion } from '../src/render/renderer';
+import { singleFrameMotion, fallCamDrop, deathPose } from '../src/render/renderer';
 
 /**
  * 单帧形象的程序化律动只有一处能出错：参数调过头。
@@ -132,5 +132,63 @@ describe('单帧律动', () => {
     const a = run({ dashing: true, onGround: false, vy: 500 }, false, 0).m;
     const b = run({ dashing: true, onGround: true }, false, 0).m;
     expect(a).toEqual(b);
+  });
+});
+
+describe('坠亡回放的镜头下带', () => {
+  const WORLD_H = 576;
+  // 坠崖判定是「掉出世界底 64px」，人物落点恒在 640 稍下（最多再多掉一帧 ≈15px）
+  const LANDED = [641, 648, 655];
+
+  it('把人物压回屏幕内，且不贴边', () => {
+    for (const y of LANDED) {
+      const drop = fallCamDrop(y);
+      const onScreen = y - drop;                 // 人物脚踝在屏幕上的位置
+      expect(onScreen, `y=${y}`).toBeLessThan(WORLD_H);      // 真的看得见
+      expect(onScreen, `y=${y}`).toBeGreaterThan(WORLD_H * 0.5); // 但仍在下半屏，上方留着那道沟
+    }
+  });
+
+  it('镜头下带有上限，不会把整个世界推出画外', () => {
+    expect(fallCamDrop(5000)).toBeLessThanOrEqual(WORLD_H * 0.32);
+  });
+
+  it('人物尚在世界内时不动镜头——撞刺/被噬的现场不该被推走', () => {
+    expect(fallCamDrop(300)).toBe(0);
+    expect(fallCamDrop(WORLD_H * 0.72)).toBe(0);
+  });
+});
+
+describe('死亡姿态', () => {
+  const angle = (cause: string | null, progress: number) => {
+    let a = 0;
+    deathPose({ rotate: (r: number) => { a += r; }, translate: () => {} }, cause, progress);
+    return a;
+  };
+
+  // 死亡若只是把最后一帧冻住，人物会保持奔跑姿势僵在半空——看着不像死了，像卡住了
+  it('撞刺/被噬：前四分之一段扑倒到位，之后定住', () => {
+    expect(angle('spike', 0)).toBe(0);
+    const quarter = angle('spike', 0.25);
+    expect(quarter).toBeGreaterThan(1.3);          // 已基本倒平
+    expect(angle('spike', 0.6)).toBeCloseTo(quarter, 5); // 之后不再动，收尾不抖
+    expect(angle('enemy', 1)).toBeCloseTo(quarter, 5);
+  });
+
+  it('倒下角度不过头——超过直角就成了翻过去', () => {
+    expect(angle('spike', 1)).toBeLessThan(Math.PI / 2);
+  });
+
+  it('坠亡改为持续翻滚：人还在下落，「倒地」无从谈起', () => {
+    const a = [0, 0.3, 0.7, 1].map(p => angle('fall', p));
+    for (let i = 1; i < a.length; i++) expect(a[i]).toBeGreaterThan(a[i - 1]);
+    expect(a[3]).toBeGreaterThan(Math.PI); // 转过半圈以上，读得出「翻滚」
+  });
+
+  it('进度越界不炸', () => {
+    for (const p of [-1, 0, 1, 2, 99]) {
+      expect(Number.isFinite(angle('spike', p))).toBe(true);
+      expect(Number.isFinite(angle('fall', p))).toBe(true);
+    }
   });
 });

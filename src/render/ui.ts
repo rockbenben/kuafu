@@ -1,6 +1,6 @@
 import type { Game } from '../game/game';
 import { rgb, type Theme } from './theme';
-import { WORLD_H, MULT_MAX, MULT_PER_MOTE } from '../game/constants';
+import { WORLD_H, MULT_MAX, MULT_PER_MOTE, DYING_TIME, DEATH_FADE } from '../game/constants';
 import type { BoardState } from '../api/leaderboard';
 import { t, tf, tTouch, rankKeyFor, fontKai, fontHud, fontKaiFor, getLocale, LOCALES, type Locale, type StringKey } from './strings';
 import { drawFit } from './text';
@@ -218,11 +218,26 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   ctx.textAlign = 'center';
   ctx.shadowColor = 'rgba(0,0,0,0.6)';   // 结局图较亮，统一暗影托字，暗淡文案亦可读
   ctx.shadowBlur = 7;
+
   const st = game.runStats;
-  // 死因·升华为神话之句
+  // 死因·升华为神话之句。
+  // 回放与结算页**共用同一位置与字号**，中间只有透明度在变——死因是这两屏之间
+  // 唯一贯穿的东西，位置一跳，「定格→结算」就断成两个画面而不是一次收束。
+  const causeFade = game.dying
+    ? Math.min(1, (1 - game.dyingT / DYING_TIME) * 3.2) // 回放前三成时间里浮出
+    : 1;
   ctx.font = `22px ${fontKai()}`;
-  ctx.fillStyle = 'rgba(248,238,222,0.88)';
+  ctx.fillStyle = `rgba(248,238,222,${(0.88 * causeFade).toFixed(3)})`;
   ctx.fillText(t(DEATH_KEY[game.deathCause ?? 'darkness'] ?? 'death.darkness'), vw / 2, WORLD_H * 0.22);
+
+  // 成绩、称号、榜单随结局图一起淡入（见 renderer 的 endingAlpha，同一条曲线）。
+  // 回放主体那一秒多里它们一律不上：一上就把死亡现场盖住了，而那正是回放的全部意义。
+  const contentAlpha = game.dying ? Math.max(0, 1 - game.dyingT / DEATH_FADE) : 1;
+  if (contentAlpha <= 0) {
+    ctx.shadowBlur = 0;
+    return;
+  }
+  ctx.globalAlpha = contentAlpha;
   // 功业·本局总分，朱印钤记（如画作落款用印）
   ctx.font = `48px ${fontHud()}`;
   ctx.fillStyle = '#f7ecd8';
@@ -282,6 +297,7 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   // 死亡页也放一枚语言牌：触屏此前只能在标题页切语言，结算页是唯一「盯着
   // 一屏文字却没有任何菜单入口」的地方，这正是要补的可达性缺口。
   drawLangChip(ctx, theme, vw, coarse);
+  ctx.globalAlpha = 1; // 淡入用的 alpha 必须还原：ctx 跨帧复用，泄漏会让整屏越画越淡
 }
 
 /** 竖屏提示：触屏竖持时**铺满整屏**（在设备像素空间绘制，不受世界视口信箱化影响）
