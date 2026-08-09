@@ -36,6 +36,90 @@
       letter-spacing: 0.06em; transition: color 0.2s;
     }
     #gh:hover { color: rgba(255, 225, 160, 0.95); }
+    /* 换形象：主功能，做成标题下方一枚醒目的胶囊键（带当前形象的圆形预览）。
+       用原生 file input，不进 canvas 命中判定那串守卫里（那里第 6 段把鼠标全挡掉了）。
+       「还原」只在已换过形象时出现——传错一张图若无路可退，人就卡在那儿了。 */
+    /* left/top 由 placeAvBar() 按世界坐标算出——canvas 是信箱化的，用 vh 猜位置
+       会在某些窗口比例下正好压住「按任意键，起而逐日」。这里的值只是首帧兜底。 */
+    #avbar {
+      position: fixed; left: 50%; top: 82%; transform: translate(-50%, -50%);
+      display: none; flex-direction: column; gap: 0.5em; align-items: center;
+      z-index: 10; white-space: nowrap;
+      font: 15px "STKaiti", "KaiTi", "楷体", "BiauKai", serif; letter-spacing: 0.08em;
+    }
+    #avbar.on { display: flex; }
+    /* 结算页：底边对齐锚点、向上生长。那一屏底下没有余量——居中对齐时展开态
+       （一排圆 + 提示行）会直接溢出屏幕底部。 */
+    #avbar.anchor-bottom { transform: translate(-50%, -100%); }
+    #avrow { display: flex; gap: 0.93em; align-items: center; }
+    /* 「还能传自己的图」只在展开时说——收起态挂着它就成了常驻噪音 */
+    #avtip { font-size: 0.8em; color: rgba(240, 228, 210, 0.62); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+    #avbar:not(.open) #avtip { display: none; }
+    /* 主键：暖金边的暗石胶囊，与触屏控制键同一族（玄石为体、落日为光）。
+       内部尺寸一律用 em——font-size 由 placeAvBar() 按信箱化 scale 设，
+       否则 canvas 里的牌随窗口放大、这颗键却恒为 15px，越大的屏越显得小。 */
+    #av {
+      display: flex; align-items: center; gap: 0.73em; cursor: pointer;
+      font: inherit; letter-spacing: inherit; -webkit-appearance: none; appearance: none;
+      padding: 0.47em 1.33em 0.47em 0.47em; border-radius: 999px; min-height: 44px;
+      border: 1px solid rgba(255, 207, 122, 0.44);
+      background: radial-gradient(circle at 62% 34%, rgba(58, 35, 20, 0.62), rgba(9, 5, 3, 0.68) 72%);
+      color: rgba(255, 238, 208, 0.94);
+      box-shadow: 0 0 16px rgba(255, 176, 92, 0.18), 0 4px 14px rgba(0, 0, 0, 0.42);
+      transition: border-color 0.2s, box-shadow 0.2s, transform 0.12s;
+    }
+    #av:hover, #av:focus-within {
+      border-color: rgba(255, 225, 160, 0.92);
+      box-shadow: 0 0 26px rgba(255, 190, 110, 0.42), 0 4px 14px rgba(0, 0, 0, 0.42);
+    }
+    #av:active { transform: scale(0.97); }
+    /* 圆形预览：直接给出「换的是这个」的所指，比任何文案都短 */
+    #av-thumb {
+      width: 2.2em; height: 2.2em; border-radius: 50%; object-fit: contain; object-position: center bottom;
+      /* 亮底：内置素材是纯黑剪影，压在暗胶囊上等于看不见 */
+      background: rgba(255, 232, 200, 0.62); border: 1px solid rgba(255, 207, 122, 0.34);
+      padding: 0.13em; box-sizing: border-box;
+    }
+    #av-reset {
+      color: rgba(240, 228, 210, 0.52); cursor: pointer; font-size: 0.85em;
+      transition: color 0.2s; text-decoration: underline dotted rgba(240, 228, 210, 0.3);
+    }
+    #av-reset:hover, #av-reset:focus-visible { color: rgba(255, 225, 160, 0.95); outline: none; }
+    #av-reset[hidden] { display: none; }
+    #avpick input { display: none; }
+    /* 展开态：一排圆形缩略图就地替掉胶囊，不另开面板——标题页上下都挤，
+       多一层浮层就得再解一次「压住哪行字」的定位问题。 */
+    #avpick { display: none; gap: 0.5em; align-items: center; }
+    #avbar.open #av, #avbar.open #av-reset { display: none; }
+    #avbar.open #avpick { display: flex; }
+    .avopt {
+      /* button 不继承父级 font-size（默认 13.33px），label 却继承——不显式 inherit，
+         这一排里 <button> 的预设圆和 <label> 的「＋」会差出一整圈 */
+      font: inherit;
+      /* 小屏上 font-size 被 clamp 到 13px，2.9em 只有 37.7px——低于可点最小尺寸，
+         拇指常按空。与触屏控制键同一条 44px 下限（见 #tc 那段注释）。 */
+      width: max(2.9em, 44px); height: max(2.9em, 44px);
+      padding: 0.12em; box-sizing: border-box;
+      border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center;
+      background: rgba(255, 232, 200, 0.62);
+      border: 2px solid rgba(255, 207, 122, 0.34);
+      transition: border-color 0.18s, box-shadow 0.18s, transform 0.12s;
+    }
+    .avopt img { width: 100%; height: 100%; object-fit: contain; object-position: center bottom; display: block; }
+    .avopt:hover, .avopt:focus-visible {
+      border-color: rgba(255, 225, 160, 0.95); transform: scale(1.08); outline: none;
+      box-shadow: 0 0 16px rgba(255, 190, 110, 0.5);
+    }
+    /* 当前选中：亮一圈，否则一排圆里认不出自己现在是谁 */
+    .avopt.cur { border-color: rgba(255, 232, 180, 1); box-shadow: 0 0 18px rgba(255, 196, 120, 0.72); }
+    /* 「+」上传：暗底，与预设区分开——它不是第七个形象 */
+    #av-more {
+      background: radial-gradient(circle at 62% 34%, rgba(58, 35, 20, 0.72), rgba(9, 5, 3, 0.78) 72%);
+      color: rgba(255, 226, 178, 0.9);
+    }
+    /* ＋ 放大只放大字形，不能动 .avopt 的 font-size——那会连圆的直径一起放大 */
+    #av-more span { font-size: 1.45em; line-height: 1; }
+    /* 矮屏（横持手机）标题区本就挤，胶囊缩一档免得压到「按任意键」 */
 
     /* 触屏控制·逐日 —— 玄石为体、落日斜掠为光、楷书为言：
        静息是被低日打亮的暗石碟（受光偏右上=所追之日方向，凸面感）；按下自石心迸出
@@ -117,7 +201,7 @@
       #tc button#tc-ult.ready { animation: none; box-shadow: 0 0 18px 5px rgba(255, 186, 104, 0.4); }
     }
   </style>
-  <script type="module" crossorigin src="./assets/index-Cf2fUI6g.js"></script>
+  <script type="module" crossorigin src="./assets/index-Bx6DQ849.js"></script>
   <meta property="og:locale" content="zh_CN" />
   <meta name="twitter:title" content="逐光 · 夸父逐日" />
   <meta name="twitter:description" content="剪影风神话跑酷：化身夸父追逐永不可及的太阳，看你能逐日多远。" />
@@ -133,6 +217,21 @@
   <canvas id="game"></canvas>
   <!-- 源码链接：如仓库名不同，改此 href 即可 -->
   <a id="gh" href="https://github.com/rockbenben/kuafu" target="_blank" rel="noopener noreferrer">源码 · GitHub ↗</a>
+  <!-- 换形象：文字由 applyAvatarLocale() 按当前语种填入，此处留空不写死任何一种语言 -->
+  <div id="avbar">
+    <div id="avrow">
+      <button id="av" type="button" aria-expanded="false">
+        <img id="av-thumb" alt="">
+        <span id="av-label"></span>
+      </button>
+      <span id="av-reset" role="button" tabindex="0" hidden></span>
+      <!-- 预设按钮由 buildAvPicker() 插在「+」之前；此处只留上传口 -->
+      <div id="avpick" role="group">
+        <label id="av-more" class="avopt" tabindex="0"><span>＋</span><input id="av-file" type="file" accept="image/*"></label>
+      </div>
+    </div>
+    <div id="avtip"></div>
+  </div>
   <!-- 触屏控制按钮（仅触屏设备游玩时显示） -->
   <div id="tc" aria-hidden="true">
     <!-- 文字与 aria-label 由 TouchControls.applyLocale() 按当前语种填入，
