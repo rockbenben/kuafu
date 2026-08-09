@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { mulberry32, difficultyForDistance, ChunkStream, dailySeed, REST_AFTER } from '../src/game/generator';
+import { mulberry32, difficultyForDistance, ChunkStream, dailySeed, REST_MAX } from '../src/game/generator';
 import { CHUNKS } from '../src/game/chunks';
 
 describe('dailySeed', () => {
@@ -102,7 +102,7 @@ describe('喘息保底', () => {
         run = c.difficulty >= 3 ? run + 1 : 0;
         worst = Math.max(worst, run);
       }
-      expect(worst, `seed ${seed}`).toBeLessThanOrEqual(REST_AFTER + 1);
+      expect(worst, `seed ${seed}`).toBeLessThanOrEqual(REST_MAX + 1);
     }
   });
 
@@ -125,5 +125,28 @@ describe('喘息保底', () => {
       exitY = c.exitY;
       expect(c.difficulty).toBe(1);
     }
+  });
+  // 阈值取区间随机而非定值：定值会把节奏压成严格周期（末段难度恒为 3~5，保底机制
+  // 完全主导，实测平均连段恰好等于阈值本身），玩家几拍就能数出下一个喘息在哪。
+  it('张弛比落在通行区间，且连段长度不可预测', () => {
+    let easy = 0, total = 0;
+    const runs: number[] = [];
+    for (const seed of [1, 7, 42, 1234, 99991, 20260809, 555, 31337]) {
+      const s = new ChunkStream(mulberry32(seed));
+      let exitY = 14, run = 0;
+      for (let i = 0; i < 400; i++) {
+        const c = s.next(3000, exitY);
+        exitY = c.exitY; total++;
+        if (c.difficulty <= 2) easy++;
+        if (c.difficulty >= 3) run++; else { if (run) runs.push(run); run = 0; }
+      }
+    }
+    const ratio = easy / total;
+    expect(ratio, `喘息占比 ${(ratio * 100).toFixed(1)}%`).toBeGreaterThan(0.14);
+    expect(ratio, `喘息占比 ${(ratio * 100).toFixed(1)}%`).toBeLessThan(0.26);
+    // 连段长度必须有多种，只出一种就说明退化回固定周期了
+    expect(new Set(runs).size).toBeGreaterThanOrEqual(3);
+    expect(Math.max(...runs)).toBeLessThanOrEqual(REST_MAX);
+    expect(Math.min(...runs)).toBeGreaterThanOrEqual(1);
   });
 });

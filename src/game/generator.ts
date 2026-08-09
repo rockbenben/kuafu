@@ -35,16 +35,30 @@ export function difficultyForDistance(m: number): { min: number; max: number } {
  */
 export const MAX_SEAM_CLIMB = 2;
 
-/** 连续这么多个高难块（难度 ≥3）之后，强制塞一个喘息块。 */
-export const REST_AFTER = 4;
+/**
+ * 连续多少个高难块（难度 ≥3）之后强制塞一个喘息块——取区间随机，不取定值。
+ *
+ * 定值会把节奏压成严格周期：末段难度恒为 3~5，于是保底机制完全主导，实测「平均
+ * 高难连段」恰好等于阈值本身，玩家几拍就能数出下一个喘息在哪。关卡节奏的通行做法
+ * 是张弛比 3:1 ~ 5:1（喘息占 17~25%）**且周期要抖**，所以每次喘息后重掷一次。
+ */
+export const REST_MIN = 3;
+export const REST_MAX = 6;
 
 export class ChunkStream {
   private rng: () => number;
   private lastId = '';
-  private hardRun = 0; // 连续高难块计数
+  private hardRun = 0;   // 连续高难块计数
+  private restAfter = 0; // 本轮的喘息阈值，每次喘息后重掷
 
   constructor(rng: () => number = Math.random) {
     this.rng = rng;
+    this.rollRest();
+  }
+
+  /** 重掷喘息阈值。用同一条 rng，故同种子仍完全可复现。 */
+  private rollRest() {
+    this.restAfter = REST_MIN + Math.floor(this.rng() * (REST_MAX - REST_MIN + 1));
   }
 
   next(distanceM: number, prevExitY: number): ChunkDef {
@@ -57,7 +71,7 @@ export class ChunkStream {
     // 末段难度是 { min: 3, max: 5 }——照字面走，1050m 之后**永远**不会再出
     // 1~2 级块，长跑段落一路绷着、没有节奏起伏。连续若干个高难块后强制降档，
     // 给玩家一口气；喘息块接不上当前高度时按下面的回退链正常处理。
-    const wantRest = this.hardRun >= REST_AFTER;
+    const wantRest = this.hardRun >= this.restAfter;
     let pool = wantRest ? CHUNKS.filter(c => fits(c, 3, 1, 2)) : [];
     if (!pool.length) pool = CHUNKS.filter(c => fits(c, 3, min, max));
     if (!pool.length) pool = CHUNKS.filter(c => fits(c, 3, 1, 5));
@@ -68,7 +82,8 @@ export class ChunkStream {
     const finalPool = noRepeat.length ? noRepeat : pool;
     const pick = finalPool[Math.floor(this.rng() * finalPool.length)];
     this.lastId = pick.id;
-    this.hardRun = pick.difficulty >= 3 ? this.hardRun + 1 : 0;
+    if (pick.difficulty >= 3) this.hardRun++;
+    else { this.hardRun = 0; this.rollRest(); } // 喘过一口，下一段紧张长度重掷
     return pick;
   }
 }
