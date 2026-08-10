@@ -257,6 +257,28 @@ const isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer
 /** 竖持手机：旋转提示铺满整屏，此时任何浮层都看不见，不该被打开。 */
 const rotateHintUp = () => isCoarsePointer && innerHeight > innerWidth * 1.1;
 
+/**
+ * 移动端全屏。地址栏 + 底部导航栏吃掉近 1/5 的屏，横持时那一截正是跑道。
+ *
+ * 必须在**用户手势的同步调用栈里**发起，故挂在触屏交互那一下上（见 pointerdown
+ * 第 6 段），不能在加载时自动调——会被浏览器直接拒。
+ * iPhone Safari 不实现元素全屏（只有 <video> 有 webkitEnterFullscreen），那里静默
+ * 失败、退回非全屏，属预期；iPhone 的唯一全屏路径是「添加到主屏幕」。
+ */
+function goFullscreen() {
+  if (!isCoarsePointer || document.fullscreenElement) return;
+  // 全屏 documentElement 而非 canvas：触屏控制键（#tc）在 canvas 之外，
+  // 只全屏 canvas 会把它们一起挡在屏外。
+  void document.documentElement.requestFullscreen?.().then(() => {
+    // 顺手锁横屏——这是「请横持手机」那条提示的正解：系统开了竖排方向锁的人，
+    // 物理转手机也转不过来，此前只能一直盯着提示。锁横屏只在全屏态下被允许，
+    // 故必须等 requestFullscreen 落定再调。不支持处 reject，忽略。
+    // lib.dom 没收录 lock（Safari 不实现，TS 便未纳入）——就地窄化，不为一处 API 开 .d.ts
+    const so = screen.orientation as ScreenOrientation & { lock?: (o: 'landscape') => Promise<void> };
+    void so?.lock?.('landscape').catch(() => {});
+  }).catch(() => {});
+}
+
 // 隐藏秘籍·夸父不竭：连按 3 次「下」(↓↓↓ 或 SSS) 开启/关闭神力无限
 const CHEAT_SEQ = ['ArrowDown', 'ArrowDown', 'ArrowDown'];
 const konamiBuf: string[] = [];
@@ -358,6 +380,11 @@ window.addEventListener('keydown', e => {
  * 注明守卫，而不是继续在一串 if 里挪。
  */
 canvas.addEventListener('pointerdown', e => {
+  // 借这一下手势进全屏 + 锁横屏。放在分派之前、且**不 return**：它是侧效应，不参与
+  // 下面那张顺序表。必须早于第 1 段——旋转提示铺屏时那段直接 return，而竖持正是最
+  // 需要锁横屏的时候，放在后面等于对这批人永远不生效。已在全屏则空转。
+  if (e.pointerType !== 'mouse') goFullscreen();
+
   // 所有命中都在**世界**坐标下判定：这些东西由 renderUI 画在信箱化变换里，
   // 拿屏幕比例去比，信箱化越严重错得越多。
   const world = renderer.screenToWorld(e.clientX, e.clientY);
