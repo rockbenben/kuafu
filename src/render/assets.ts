@@ -51,6 +51,8 @@ export const EMPTY_ASSETS: Assets = {
 
 type SingleKey = Exclude<keyof Assets, 'playerRunFrames' | 'endingArts' | 'phaseBg' | 'props'>;
 
+// 全部美术资源为**无损** WebP（由 PNG 转来，不透明像素与 alpha 逐位一致，体积减半）。
+// 无损而非 q88：两者体积几乎相同，但无损免去逐张肉眼验画质这件事。
 const PATHS: Record<SingleKey, string> = {
   playerRun: 'assets/sprites/player-run.webp',
   playerIdle: 'assets/sprites/player-idle.webp',
@@ -88,27 +90,41 @@ function loadOne(path: string): Promise<HTMLImageElement | null> {
   });
 }
 
+const PHASE_LAYERS = ['far', 'mid', 'near'] as const;
+const phaseBgPaths = (p: string) => PHASE_LAYERS.map(l => `assets/bg/bg-${p}-${l}.webp`);
+const propPath = (n: string) => `assets/props/prop-${n}.webp`;
+
+/** 首屏批里就要到齐的那一段旅程（PHASE_KEYS[0]，玩家开局即身处此段）。 */
+const FIRST_PHASE = PHASE_KEYS[0];
+
+/**
+ * 首屏批。**只加载「能进标题页、能跑完第一段」所需的那些**——约 0.6 MB。
+ *
+ * 此前这里是一个 Promise.all 吞下全部 5.3 MB（含十张只在死亡时用一张的结局图、
+ * 五段几分钟后才走到的背景），main.ts 的 `await loadAssets()` 顶在最前面，于是
+ * 玩家要盯着空白页等全部下完。实测本机（无限带宽）都要 2.0 秒，4G 上是 5 秒起。
+ *
+ * 剩下的由 loadRest 在此之后自行续传，**不 await**：它直接改写同一个 Assets 对象，
+ * 而 main.ts 与 Renderer 持有的正是这个引用（main.ts 换形象时本来就在原地改它），
+ * 所以调用方一行都不用动。未到货的部分渲染层本就按 null / 缺键优雅退化。
+ */
 export async function loadAssets(): Promise<Assets> {
   const keys = Object.keys(PATHS) as SingleKey[];
   const runPaths = Array.from({ length: MAX_RUN_FRAMES }, (_, i) => `assets/sprites/player-run-${i}.webp`);
-  const endingPaths = ['assets/ending-art.webp'];
-  for (let i = 2; i <= MAX_ENDINGS; i++) endingPaths.push(`assets/ending-art-${i}.webp`);
-  // 六段旅程背景层：每段 far/mid/near
-  const phaseLayers = ['far', 'mid', 'near'] as const;
-  const phaseBgPaths = PHASE_KEYS.flatMap(p => phaseLayers.map(l => `assets/bg/bg-${p}-${l}.webp`));
-  const propPaths = PROP_NAMES.map(n => `assets/props/prop-${n}.webp`);
 
-  // 一次并行加载全部（单图 + 奔跑帧 + 结局图 + 段落背景 + 道具）
-  const [singles, runFrames, endings, phaseBgImgs, propImgs] = await Promise.all([
+  const [singles, runFrames, firstBg, firstProps] = await Promise.all([
     Promise.all(keys.map(k => loadOne(PATHS[k]))),
     Promise.all(runPaths.map(loadOne)),
-    Promise.all(endingPaths.map(loadOne)),
-    Promise.all(phaseBgPaths.map(loadOne)),
-    Promise.all(propPaths.map(loadOne)),
+    Promise.all(phaseBgPaths(FIRST_PHASE).map(loadOne)),
+    Promise.all(PROP_BIOMES[FIRST_PHASE].map(n => loadOne(propPath(n)))),
   ]);
 
   const out: Assets = { ...EMPTY_ASSETS, playerRunFrames: [], phaseBg: {}, props: {} };
   keys.forEach((k, i) => { out[k] = singles[i]; });
+  // 未到货的段落先占好 null 位：渲染层按「该段无图」回退到基础 bg，不会读到 undefined
+  PHASE_KEYS.forEach(p => { out.phaseBg[p] = [null, null, null]; });
+  out.phaseBg[FIRST_PHASE] = firstBg;
+  PROP_BIOMES[FIRST_PHASE].forEach((n, i) => { const img = firstProps[i]; if (img) out.props[n] = img; });
 
   // 奔跑帧：帧号必须连续，遇第一个缺失即停
   const frames: HTMLImageElement[] = [];
@@ -117,14 +133,31 @@ export async function loadAssets(): Promise<Assets> {
     frames.push(img);
   }
   out.playerRunFrames = frames;
+
+  void loadRest(out);
+  return out;
+}
+
+/**
+ * 续传批：玩家已经在标题页上了，剩下的边玩边到。
+ *
+ * 分三批**顺序**发，而不是一把 Promise.all——请求的创建顺序就是浏览器的下载优先级，
+ * 而这三批被需要的时刻先后分明：
+ *   1. 结局图——任何一次死亡都要用，而开局二十秒内死是最常见的一局；
+ *   2. 其余五段背景——按旅程顺序，玩家是顺着走过去的；
+ *   3. 其余道具——纯装饰，缺了只是少几棵树。
+ */
+async function loadRest(out: Assets) {
+  const endingPaths = ['assets/ending-art.webp'];
+  for (let i = 2; i <= MAX_ENDINGS; i++) endingPaths.push(`assets/ending-art-${i}.webp`);
+  const endings = await Promise.all(endingPaths.map(loadOne));
   out.endingArts = endings.filter((img): img is HTMLImageElement => img !== null);
 
-  // 段落背景：每段收 3 层（缺失为 null，渲染层回退到基础 bg）
-  PHASE_KEYS.forEach((p, pi) => {
-    out.phaseBg[p] = [phaseBgImgs[pi * 3], phaseBgImgs[pi * 3 + 1], phaseBgImgs[pi * 3 + 2]];
-  });
-  // 道具：仅收录成功加载者
-  PROP_NAMES.forEach((n, i) => { const img = propImgs[i]; if (img) out.props[n] = img; });
+  const rest = PHASE_KEYS.filter(p => p !== FIRST_PHASE);
+  const bgs = await Promise.all(rest.map(p => Promise.all(phaseBgPaths(p).map(loadOne))));
+  rest.forEach((p, i) => { out.phaseBg[p] = bgs[i]; });
 
-  return out;
+  const restProps = PROP_NAMES.filter(n => !PROP_BIOMES[FIRST_PHASE].includes(n));
+  const propImgs = await Promise.all(restProps.map(n => loadOne(propPath(n))));
+  restProps.forEach((n, i) => { const img = propImgs[i]; if (img) out.props[n] = img; });
 }
