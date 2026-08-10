@@ -96,7 +96,7 @@ function drawSky(ctx) {
 
 /** 一层山影：填色后 destination-in 抠出剪影，再横向铺满（同 tintedLayer）。 */
 async function drawRidge(ctx, cfg, tint) {
-  const img = await loadImage(join(ART, 'bg', `bg-dawn-${cfg.key}.png`));
+  const img = await loadImage(join(ART, 'bg', `bg-dawn-${cfg.key}.webp`));
   const off = createCanvas(img.width, img.height);
   const oc = off.getContext('2d');
   oc.fillStyle = rgb(tint);
@@ -261,7 +261,7 @@ function drawType(ctx) {
 }
 
 /**
- * 夸父：游戏里那张前冲剪影（player-dash.png，本就带速度线）。
+ * 夸父：游戏里那张前冲剪影（player-dash.webp，本就带速度线）。
  *
  * 位置卡在长夜前缘与日轮之间——身后是追上来的夜，身前是追不上的日，两头都够
  * 不着。这是整个神话唯一要画的一件事。
@@ -272,7 +272,7 @@ async function drawRunner(ctx) {
   // 玩的时候九成时间看到的姿势。
   // 够高，头与杖尖要探出近景的树线：黑剪影压在同样是黑的树线上就糊成一团，
   // 得有一段轮廓落在被日照亮的天上才读得出是个人。
-  const img = await loadImage(join(ART, 'sprites', 'player-run-0.png'));
+  const img = await loadImage(join(ART, 'sprites', 'player-run-0.webp'));
   const h = 178, w = img.width * (h / img.height);
   const x = W * 0.395, y = GROUND - h + 4; // +4：脚陷进浮土一点，不像贴上去的
   ctx.drawImage(img, x, y, w, h);

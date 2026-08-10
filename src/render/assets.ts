@@ -52,16 +52,16 @@ export const EMPTY_ASSETS: Assets = {
 type SingleKey = Exclude<keyof Assets, 'playerRunFrames' | 'endingArts' | 'phaseBg' | 'props'>;
 
 const PATHS: Record<SingleKey, string> = {
-  playerRun: 'assets/sprites/player-run.png',
-  playerIdle: 'assets/sprites/player-idle.png',
-  playerJump: 'assets/sprites/player-jump.png',
-  playerDash: 'assets/sprites/player-dash.png',
-  enemyWalker: 'assets/sprites/enemy-walker.png',
-  enemyFlyerUp: 'assets/sprites/enemy-flyer-up.png',
-  enemyFlyerDown: 'assets/sprites/enemy-flyer-down.png',
-  bgFar: 'assets/bg/bg-far.png',
-  bgMid: 'assets/bg/bg-mid.png',
-  bgNear: 'assets/bg/bg-near.png',
+  playerRun: 'assets/sprites/player-run.webp',
+  playerIdle: 'assets/sprites/player-idle.webp',
+  playerJump: 'assets/sprites/player-jump.webp',
+  playerDash: 'assets/sprites/player-dash.webp',
+  enemyWalker: 'assets/sprites/enemy-walker.webp',
+  enemyFlyerUp: 'assets/sprites/enemy-flyer-up.webp',
+  enemyFlyerDown: 'assets/sprites/enemy-flyer-down.webp',
+  bgFar: 'assets/bg/bg-far.webp',
+  bgMid: 'assets/bg/bg-mid.webp',
+  bgNear: 'assets/bg/bg-near.webp',
   titleArt: 'assets/title-art.webp',
 };
 
@@ -90,13 +90,13 @@ function loadOne(path: string): Promise<HTMLImageElement | null> {
 
 export async function loadAssets(): Promise<Assets> {
   const keys = Object.keys(PATHS) as SingleKey[];
-  const runPaths = Array.from({ length: MAX_RUN_FRAMES }, (_, i) => `assets/sprites/player-run-${i}.png`);
+  const runPaths = Array.from({ length: MAX_RUN_FRAMES }, (_, i) => `assets/sprites/player-run-${i}.webp`);
   const endingPaths = ['assets/ending-art.webp'];
   for (let i = 2; i <= MAX_ENDINGS; i++) endingPaths.push(`assets/ending-art-${i}.webp`);
   // 六段旅程背景层：每段 far/mid/near
   const phaseLayers = ['far', 'mid', 'near'] as const;
-  const phaseBgPaths = PHASE_KEYS.flatMap(p => phaseLayers.map(l => `assets/bg/bg-${p}-${l}.png`));
-  const propPaths = PROP_NAMES.map(n => `assets/props/prop-${n}.png`);
+  const phaseBgPaths = PHASE_KEYS.flatMap(p => phaseLayers.map(l => `assets/bg/bg-${p}-${l}.webp`));
+  const propPaths = PROP_NAMES.map(n => `assets/props/prop-${n}.webp`);
 
   // 一次并行加载全部（单图 + 奔跑帧 + 结局图 + 段落背景 + 道具）
   const [singles, runFrames, endings, phaseBgImgs, propImgs] = await Promise.all([
