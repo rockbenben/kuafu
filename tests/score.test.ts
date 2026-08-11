@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Score } from '../src/game/score';
-import { PX_PER_METER, MOTE_SCORE, MULT_MAX, AIRTIME_BONUS, KILL_BONUS } from '../src/game/constants';
+import { PX_PER_METER, MOTE_SCORE, MULT_MAX, AIRTIME_BONUS } from '../src/game/constants';
 
 describe('Score', () => {
   it('距离换算为米且单调不减', () => {
@@ -24,12 +24,5 @@ describe('Score', () => {
     s.collectMote();                       // mult 1.1
     s.styleBonus();
     expect(s.total).toBe(Math.floor(100 * 1.1) + MOTE_SCORE + AIRTIME_BONUS);
-  });
-  it('击杀敌人获得击杀加分', () => {
-    const s = new Score();
-    s.killBonus();
-    expect(s.bonus).toBe(KILL_BONUS);
-    s.killBonus();
-    expect(s.bonus).toBe(KILL_BONUS * 2);
   });
 });

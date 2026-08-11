@@ -54,6 +54,7 @@ export const ko: Messages = {
   'hud.mult': '배율',
   'hud.brimful': '햇빛 가득',
   'hud.charge': '신력',
+  'hud.combo': '연속',
   'hint.ult': '필살기 준비 · K 로 한 화면을 단숨에 건너뛰기',
   'pop.stride': '과보의 도보',
   'cheat.on': '비전·과보불갈 · 신력 무한',
@@ -98,11 +99,13 @@ export const ko: Messages = {
   'hint.jump': '스페이스 / ↑ 길게 눌러 멀리 도약',
   'hint.dash': '샘물로 힘을 잇고 · Shift / J 로 질주',
   'hint.kill': 'Shift / J 로 부수기 · 또는 뛰어올라 위에서 밟기',
+  'hint.shield': '돌방패가 돌진을 막는다 · 뛰어올라 밟거나 등을 쳐라',
   'hint.score': '햇빛은 배율을 올린다 · 노정 × 배율 = 공업',
   'hint.run.touch': '▶ 를 눌러 앞으로 달려라',
   'hint.jump.touch': '▲ 길게 눌러 멀리 도약',
   'hint.dash.touch': '샘물로 힘을 잇고 · ≫',
   'hint.kill.touch': '≫ 로 부수기 · 또는 ▲ 로 위에서 밟기',
+  'hint.shield.touch': '돌방패가 「≫」를 막는다 · 「▲」로 밟거나 등을 쳐라',
   'hint.ult.touch': '필살기 준비 · ★ 로 한 화면을 단숨에 건너뛰기',
 
   // 주맥·『산해경·해외북경』
@@ -145,6 +148,9 @@ export const ko: Messages = {
   'death.restart': 'R · 다시',
   'rotate.hint': '가로 화면이 더 좋습니다',
   'rotate.sub': '기기를 돌려 주세요',
+  'rotate.tap': '또는 화면을 누르면 전체 화면으로 가로 고정',
 
   'pop.water': '힘을 잇다',
+  'pop.bounce': '막혔다',
+  'pop.backstab': '배후 일격',
 };

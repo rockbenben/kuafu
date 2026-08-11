@@ -54,6 +54,7 @@ export const en: Messages = {
   'hud.mult': 'Mult',
   'hud.brimful': 'Brimful of light',
   'hud.charge': 'Spirit',
+  'hud.combo': 'CHAIN',
   'hint.ult': 'Ultimate ready · press K to stride a whole screen',
   'pop.stride': "KUAFU'S STRIDE",
   'cheat.on': 'Cheat · Unquenchable — endless spirit',
@@ -98,11 +99,13 @@ export const en: Messages = {
   'hint.jump': 'Hold Space / ↑ to leap farther',
   'hint.dash': 'Sip the spring · Shift / J to dash',
   'hint.kill': 'Shift / J to shatter · or leap and land on it',
+  'hint.shield': 'Shield blocks dashes · leap and land on it, or strike its back',
   'hint.score': 'Light raises mult · distance × mult = glory',
   'hint.run.touch': 'Hold ▶ to run onward',
   'hint.jump.touch': 'Hold ▲ to leap farther',
   'hint.dash.touch': 'Sip the spring · tap ≫',
   'hint.kill.touch': 'Tap ≫ to shatter · or ▲ and land on it',
+  'hint.shield.touch': 'Shield blocks ≫ · tap ▲ and land on it, or hit its back',
   'hint.ult.touch': 'Ultimate ready · tap ★ to stride a whole screen',
 
   // 主脉·《山海经·海外北经》
@@ -145,6 +148,9 @@ export const en: Messages = {
   'death.restart': 'R · run again',
   'rotate.hint': 'Better in landscape',
   'rotate.sub': 'Please rotate your device',
+  'rotate.tap': 'Or tap the screen to go fullscreen and lock landscape',
 
   'pop.water': 'Renewed',
+  'pop.bounce': 'BLOCKED',
+  'pop.backstab': 'BACKSTAB',
 };

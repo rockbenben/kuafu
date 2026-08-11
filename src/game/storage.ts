@@ -53,6 +53,16 @@ export class Store {
   get best(): number { return Number(this.read('best')) || 0; }
   set best(v: number) { this.write('best', String(v)); }
 
+  /**
+   * 已经读到第几段《山海经》。跨局累积，见 Game 的里程碑那段。
+   *
+   * 十二段叙事铺到 7200 步，而实测中位一局只有 246 步——九成的人在第二段就死了，
+   * 后面十段等于不存在。一局塞不下（12 × 6.5s ≈ 78s，中位一局约 30s），所以只能
+   * 跨局接着讲。
+   */
+  get seenNar(): number { return Number(this.read('seenNar')) || 0; }
+  set seenNar(v: number) { this.write('seenNar', String(v)); }
+
   get nickname(): string { return this.read('nickname') ?? ''; }
   set nickname(v: string) { this.write('nickname', v); }
 

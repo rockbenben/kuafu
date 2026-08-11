@@ -1,4 +1,4 @@
-import { PX_PER_METER, MOTE_SCORE, MULT_PER_MOTE, MULT_MAX, AIRTIME_BONUS, KILL_BONUS } from './constants';
+import { PX_PER_METER, MOTE_SCORE, MULT_PER_MOTE, MULT_MAX, AIRTIME_BONUS } from './constants';
 
 export class Score {
   distanceM = 0;
@@ -23,9 +23,5 @@ export class Score {
 
   styleBonus() {
     this.bonus += AIRTIME_BONUS;
-  }
-
-  killBonus() {
-    this.bonus += KILL_BONUS;
   }
 }

@@ -54,6 +54,7 @@ export const zhHant: Messages = {
   'hud.mult': '倍率',
   'hud.brimful': '日光盈滿',
   'hud.charge': '神力',
+  'hud.combo': '連擊',
   'hint.ult': '大招已蓄滿 · 按 K 一步跨越一屏',
   'pop.stride': '夸父跨步',
   'cheat.on': '秘籍·夸父不竭 · 神力無盡',
@@ -98,11 +99,13 @@ export const zhHant: Messages = {
   'hint.jump': '按住空格 / ↑ 躍得更遠',
   'hint.dash': '掬泉續力 · Shift / J 疾衝',
   'hint.kill': 'Shift / J 疾衝撞碎 · 或躍起自上踩踏',
+  'hint.shield': '石盾擋衝 · 躍起自上踩踏，或繞到背後',
   'hint.score': '拾日光升倍率 · 路程 × 倍率 = 功業',
   'hint.run.touch': '按住「進」向前奔逐',
   'hint.jump.touch': '按住「躍」躍得更遠',
   'hint.dash.touch': '掬泉續力 · 點「衝」疾衝',
   'hint.kill.touch': '點「衝」撞碎 · 或點「躍」自上踩踏',
+  'hint.shield.touch': '石盾擋「衝」· 點「躍」自上踩踏，或繞到背後',
   'hint.ult.touch': '大招已蓄滿 · 點「跨」一步跨越一屏',
 
   // 主脈·《山海經·海外北經》
@@ -145,6 +148,9 @@ export const zhHant: Messages = {
   'death.restart': '按 R · 再逐一程',
   'rotate.hint': '橫屏體驗更佳',
   'rotate.sub': '請旋轉裝置',
+  'rotate.tap': '或點一下螢幕，自動全螢幕並鎖定橫向',
 
   'pop.water': '續力',
+  'pop.bounce': '擋下了',
+  'pop.backstab': '背刺',
 };

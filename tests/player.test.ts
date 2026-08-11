@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Player } from '../src/game/player';
-import { DT, COYOTE_TIME, JUMP_BUFFER, RUN_SPEED, DASH_TIME, DASH_SPEED, STRIDE_TIME, PLAYER_H } from '../src/game/constants';
+import { DT, COYOTE_TIME, JUMP_BUFFER, RUN_SPEED, DASH_TIME, DASH_SPEED, STRIDE_TIME, PLAYER_H, BOUNCE_SPEED, DASH_LOCK } from '../src/game/constants';
 import type { InputState, Rect } from '../src/game/types';
 
 export const IDLE: InputState = {
@@ -165,5 +165,53 @@ describe('Player 评审修复：跨步落点与击碎宽限', () => {
     expect(p.smashing).toBe(true); // 宽限内仍可击碎
     for (let i = 0; i < Math.ceil(0.12 / DT) + 2; i++) p.update(IDLE, DT, GROUND);
     expect(p.smashing).toBe(false);
+  });
+});
+
+describe('弹回：错解的代价是时间，不是命', () => {
+  const flat = [{ x: 0, y: 200, w: 2000, h: 32 }];
+  const idle = {
+    left: false, right: false, up: false, down: false,
+    jumpHeld: false, jumpPressed: false, dashPressed: false, ultimatePressed: false,
+  };
+
+  it('弹回当帧结束冲刺、反向后退、并锁住冲刺', () => {
+    const p = new Player({ x: 100, y: 172 });
+    p.update({ ...idle, dashPressed: true, right: true }, 1 / 60, flat);
+    expect(p.dashing, '前提：确实在冲刺').toBe(true);
+
+    p.bounceOff(-1);
+    expect(p.dashing, '冲刺必须当帧断掉').toBe(false);
+    expect(p.smashing, '击碎宽限必须一并清零，否则弹回后仍能撞碎怪').toBe(false);
+    expect(p.vel.x).toBe(-BOUNCE_SPEED);   // 传 -1 = 往左推
+    expect(p.canDash).toBe(false);
+  });
+
+  it('弹回后落地不刷新冲刺——锁定期内按冲无效', () => {
+    const p = new Player({ x: 100, y: 172 });
+    p.bounceOff(-1);
+    // 在地面上连推若干帧，仍处于锁定期
+    for (let i = 0; i < 12; i++) p.update({ ...idle }, 1 / 60, flat);
+    expect(p.onGround, '前提：已落地').toBe(true);
+    expect(p.canDash, `锁定 ${DASH_LOCK}s 内不得因落地刷新`).toBe(false);
+
+    p.update({ ...idle, dashPressed: true, right: true }, 1 / 60, flat);
+    expect(p.dashing, '锁定期内按冲不该生效').toBe(false);
+  });
+
+  it('锁定到期后恢复正常冲刺', () => {
+    const p = new Player({ x: 100, y: 172 });
+    p.bounceOff(-1);
+    for (let i = 0; i < 40; i++) p.update({ ...idle }, 1 / 60, flat); // > 0.5s
+    expect(p.canDash).toBe(true);
+    p.update({ ...idle, dashPressed: true, right: true }, 1 / 60, flat);
+    expect(p.dashing).toBe(true);
+  });
+
+  it('弹回期间按住前进也拉不回来——否则弹回没有代价', () => {
+    const p = new Player({ x: 100, y: 172 });
+    p.bounceOff(-1);
+    p.update({ ...idle, right: true }, 1 / 60, flat);
+    expect(p.vel.x, '弹回窗口内水平输入不接管').toBeLessThan(0);
   });
 });

@@ -39,13 +39,13 @@ describe('parseChunk', () => {
 describe('Level', () => {
   it('ensure 扩展世界至覆盖目标右边界', () => {
     const lv = new Level(new ChunkStream(mulberry32(1)));
-    lv.ensure(5000, 0);
+    lv.ensure(5000);
     const maxRight = Math.max(...lv.solids.map(s => s.x + s.w));
     expect(maxRight).toBeGreaterThanOrEqual(5000);
   });
   it('prune 清理左侧过期实体', () => {
     const lv = new Level(new ChunkStream(mulberry32(1)));
-    lv.ensure(8000, 0);
+    lv.ensure(8000);
     lv.prune(3000);
     expect(lv.solids.every(s => s.x + s.w >= 3000)).toBe(true);
     expect(lv.motes.every(m => m.x >= 3000)).toBe(true);

@@ -53,6 +53,7 @@ export const zhHans = {
   'hud.mult': '倍率',
   'hud.brimful': '日光盈满',
   'hud.charge': '神力',
+  'hud.combo': '连击',
   'hint.ult': '大招已蓄满 · 按 K 一步跨越一屏',
   'pop.stride': '夸父跨步',
   'cheat.on': '秘籍·夸父不竭 · 神力无尽',
@@ -98,12 +99,14 @@ export const zhHans = {
   'hint.jump': '按住空格 / ↑ 跃得更远',
   'hint.dash': '掬泉续力 · Shift / J 疾冲',
   'hint.kill': 'Shift / J 疾冲撞碎 · 或跃起自上踩踏',
+  'hint.shield': '石盾挡冲 · 跃起自上踩踏，或绕到背后',
   'hint.score': '拾日光升倍率 · 路程 × 倍率 = 功业',
   // 触屏变体（粗指针设备显示，改说按钮而非键位）
   'hint.run.touch': '按住「进」向前奔逐',
   'hint.jump.touch': '按住「跃」跃得更远',
   'hint.dash.touch': '掬泉续力 · 点「冲」疾冲',
   'hint.kill.touch': '点「冲」撞碎 · 或点「跃」自上踩踏',
+  'hint.shield.touch': '石盾挡「冲」· 点「跃」自上踩踏，或绕到背后',
   'hint.ult.touch': '大招已蓄满 · 点「跨」一步跨越一屏',
 
   // 主脉·《山海经·海外北经》
@@ -146,6 +149,9 @@ export const zhHans = {
   'death.restart': '按 R · 再逐一程',
   'rotate.hint': '横屏体验更佳',
   'rotate.sub': '请旋转设备',
+  'rotate.tap': '或点一下屏幕，自动全屏并锁定横屏',
 
   'pop.water': '续力',
+  'pop.bounce': '挡下了',
+  'pop.backstab': '背刺',
 };

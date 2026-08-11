@@ -2,7 +2,7 @@ import type { Rect } from './types';
 import type { ChunkDef } from './chunks';
 import { CHUNKS } from './chunks';
 import type { ChunkStream } from './generator';
-import { TILE } from './constants';
+import { TILE, PX_PER_METER } from './constants';
 
 export interface Pickup { x: number; y: number; taken: boolean }
 
@@ -67,9 +67,17 @@ export class Level {
     this.lastExitY = def.exitY;
   }
 
-  ensure(rightEdgeX: number, distanceM: number) {
+  /**
+   * 难度只由**这一块自己所在的位置**决定，不看玩家现在跑到哪。
+   *
+   * 原来传的是玩家实时里程，而关卡是提前两屏生成的、生成时机又随跑法浮动，
+   * 于是同一个种子在不同跑法下会长出不同的关卡——「今日挑战全球同日同关卡」
+   * 这条承诺从来没有成立过（实测 60/60 个种子、三种跑法两两不一致）。改由
+   * cursorX 推出难度之后，生成结果是 (种子, 位置) 的纯函数，与跑法无关。
+   */
+  ensure(rightEdgeX: number) {
     while (this.cursorX < rightEdgeX) {
-      this.append(this.stream.next(distanceM, this.lastExitY));
+      this.append(this.stream.next(this.cursorX / PX_PER_METER, this.lastExitY));
     }
   }
 

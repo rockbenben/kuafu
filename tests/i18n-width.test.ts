@@ -43,6 +43,7 @@ const BUDGET: { key: StringKey; px: number; max: number }[] = [
   { key: 'hint.jump', px: 18, max: VW_MIN - 80 },
   { key: 'hint.dash', px: 18, max: VW_MIN - 80 },
   { key: 'hint.kill', px: 18, max: VW_MIN - 80 },
+  { key: 'hint.shield', px: 18, max: VW_MIN - 80 },
   { key: 'hint.score', px: 18, max: VW_MIN - 80 },
   { key: 'hint.ult', px: 18, max: VW_MIN - 80 },
   { key: 'death.spike', px: 22, max: VW_MIN - 80 },
@@ -125,6 +126,8 @@ describe('触屏按钮标签必须装得进圆钮', () => {
         ['hint.dash.touch', 'btn.dash'],
         ['hint.kill.touch', 'btn.dash'],
         ['hint.kill.touch', 'btn.jump'],   // 打怪有两法：撞碎与踩踏，两个按钮都得提到
+        ['hint.shield.touch', 'btn.dash'],
+        ['hint.shield.touch', 'btn.jump'],
         ['hint.ult.touch', 'btn.ult'],
       ];
       for (const [textKey, btnKey] of pairs) {

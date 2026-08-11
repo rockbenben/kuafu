@@ -54,6 +54,7 @@ export const ja: Messages = {
   'hud.mult': '倍率',
   'hud.brimful': '日光満つ',
   'hud.charge': '神力',
+  'hud.combo': '連撃',
   'hint.ult': '奥義が満ちた · K で一気に一画面を跨ぐ',
   'pop.stride': '夸父の跨歩',
   'cheat.on': '秘伝·夸父不竭 · 神力無尽',
@@ -98,11 +99,13 @@ export const ja: Messages = {
   'hint.jump': 'スペース / ↑ 長押しで遠くへ跳べ',
   'hint.dash': '泉を掬ひ力を継ぎ · Shift / J で駆けよ',
   'hint.kill': 'Shift / J で砕く · または跳んで上から踏む',
+  'hint.shield': '石盾は突進を弾く · 跳んで踏むか、背後を突け',
   'hint.score': '日光で倍率上昇 · 道のり × 倍率 = 功業',
   'hint.run.touch': '「進」を押して前へ走れ',
   'hint.jump.touch': '「跳」長押しで遠くへ跳べ',
   'hint.dash.touch': '泉を掬ひ · 「駆」を押せ',
   'hint.kill.touch': '「駆」で砕く · または「跳」で上から踏む',
+  'hint.shield.touch': '石盾は「駆」を弾く · 「跳」で踏むか背後を突け',
   'hint.ult.touch': '奥義が満ちた · 「跨」で一気に一画面を跨ぐ',
 
   // 主脈·『山海経·海外北経』
@@ -145,6 +148,9 @@ export const ja: Messages = {
   'death.restart': 'R · いま一度',
   'rotate.hint': '横持ちが見やすい',
   'rotate.sub': '端末を回してください',
+  'rotate.tap': '画面を押せば、全画面となり横向きに固定さる',
 
   'pop.water': '力を継ぐ',
+  'pop.bounce': '弾かれた',
+  'pop.backstab': '背後から',
 };
