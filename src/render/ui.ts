@@ -4,6 +4,7 @@ import { WORLD_H, MULT_MAX, MULT_PER_MOTE, DYING_TIME, DEATH_FADE } from '../gam
 import type { BoardState } from '../api/leaderboard';
 import { t, tf, tTouch, rankKeyFor, fontKai, fontHud, fontKaiFor, getLocale, LOCALES, type Locale, type StringKey } from './strings';
 import { drawFit } from './text';
+import { uiHeight, uiFont, uiInsetL, uiInsetR, uiInsetT, uiInsetB } from './viewport';
 
 const DEATH_KEY: Record<string, StringKey> = {
   spike: 'death.spike',
@@ -62,57 +63,66 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   if (game.state === 'playing') {
     const s = game.score;
     // 左上：功业（主角分）+ 日光/倍率；右上高处：路程——与右侧日轮亮核错开，左右均衡
-    const HX = 22;
+    // 边距经 uiInset*：设计值是世界单位、在小屏上物理更小，而刘海/圆角/home 指示条
+    // 恰恰只出现在小屏上。见 viewport.ts 的安全区一节。
+    const HX = uiInsetL(22);
+    const TY = uiInsetT(11);
     ctx.textAlign = 'left';
     // 功业（总分·主角）
-    ctx.font = `12px ${fontKai()}`;
+    ctx.font = `${uiFont(12)}px ${fontKai()}`;
     ctx.fillStyle = 'rgba(240,228,210,0.55)';
-    ctx.fillText(t('hud.score'), HX, 11);
-    ctx.font = `30px ${fontHud()}`;
+    ctx.fillText(t('hud.score'), HX, TY);
+    ctx.font = `${uiFont(30)}px ${fontHud()}`;
     ctx.fillStyle = '#f7ecd8';
-    ctx.fillText(`${s.total}`, HX, 25);
-    brushRule(ctx, HX + 48, 62, 96, theme.glow, 0.4);
+    ctx.fillText(`${s.total}`, HX, TY + 14);
+    brushRule(ctx, HX + 48, TY + 51, 96, theme.glow, 0.4);
     // 日光 → 倍率（日轮字形 + 因果）：紧随功业，构成"计分"一组
     const maxed = s.motes >= MOTES_FOR_MAX;
-    ctx.font = `14px ${fontHud()}`;
+    ctx.font = `${uiFont(14)}px ${fontHud()}`;
     const lightText = maxed
       ? `${t('hud.brimful')}  →  ${t('hud.mult')} ×${s.multiplier.toFixed(1)}`
       : `${t('hud.motes')} ${s.motes}/${MOTES_FOR_MAX}  →  ${t('hud.mult')} ×${s.multiplier.toFixed(1)}`;
-    sunGlyph(ctx, HX + 5, 76, 4, theme.glow);
+    sunGlyph(ctx, HX + 5, TY + 65, 4, theme.glow);
     ctx.fillStyle = rgb(theme.glow, 0.95);
-    ctx.fillText(lightText, HX + 16, 72);
+    ctx.fillText(lightText, HX + 16, TY + 61);
+    // 连杀：清版格斗的分数引擎，断连前淡出让「要断了」看得见
+    if (game.combo.count >= 2) {
+      ctx.font = `${uiFont(16)}px ${fontHud()}`;
+      ctx.fillStyle = rgb([255, 196, 120], game.combo.alpha);
+      ctx.fillText(`${t('hud.combo')} ${game.combo.count}  ×${game.combo.multiplier.toFixed(1)}`, HX + 16, TY + 81);
+    }
     // 右上高处：路程（进度基石）——置于日轮亮核上方偏外，暗影确保浮于辉光之上可读
-    const RX = vw - 22;
+    const RX = vw - uiInsetR(22);
     ctx.textAlign = 'right';
     ctx.shadowColor = 'rgba(8,4,2,0.6)'; ctx.shadowBlur = 7;
-    ctx.font = `12px ${fontKai()}`;
+    ctx.font = `${uiFont(12)}px ${fontKai()}`;
     ctx.fillStyle = 'rgba(240,228,210,0.6)';
-    ctx.fillText(t('hud.dist2'), RX, 11);
-    ctx.font = `26px ${fontHud()}`;
+    ctx.fillText(t('hud.dist2'), RX, TY);
+    ctx.font = `${uiFont(26)}px ${fontHud()}`;
     ctx.fillStyle = 'rgba(247,236,216,0.95)';
-    ctx.fillText(`${Math.floor(s.distanceM)}`, RX, 25);
-    ctx.font = `11px ${fontKai()}`;
+    ctx.fillText(`${Math.floor(s.distanceM)}`, RX, TY + 14);
+    ctx.font = `${uiFont(11)}px ${fontKai()}`;
     ctx.fillStyle = 'rgba(240,228,210,0.5)';
-    ctx.fillText(t('hud.dist'), RX, 57);
+    ctx.fillText(t('hud.dist'), RX, TY + 46);
     ctx.shadowBlur = 0;
     ctx.textAlign = 'left';
 
     // 叙事旁白（《山海经》碎片，上方居中，楷书+辉光，淡入淡出）
     const nar = game.narration;
     if (nar) {
-      const narY = WORLD_H * 0.32;
+      const narY = uiHeight() * 0.32;
       ctx.textAlign = 'center';
       ctx.shadowColor = rgb(theme.glow, 0.9 * nar.alpha);
       ctx.shadowBlur = 22;
       ctx.fillStyle = rgb([248, 238, 222], nar.alpha);
       // 旁白 key 由 game 的里程碑表在运行时给出，形如 'nar.N'
-      drawFit(ctx, t(nar.key as StringKey), vw / 2, narY, vw - 80, 28, fontKai());
+      drawFit(ctx, t(nar.key as StringKey), vw / 2, narY, vw - 80, uiFont(28), fontKai());
       // 出处另起一行、小一号：外语须标注典籍，中文主脉留空则不画
       const narSrc = t(`${nar.key}.src` as StringKey);
       if (narSrc) {
         ctx.shadowBlur = 10;
         ctx.fillStyle = rgb([248, 238, 222], nar.alpha * 0.62);
-        drawFit(ctx, narSrc, vw / 2, narY + 34, vw - 160, 15, fontKai());
+        drawFit(ctx, narSrc, vw / 2, narY + 34, vw - 160, uiFont(15), fontKai());
       }
       ctx.shadowBlur = 0;
     }
@@ -128,13 +138,13 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
       ctx.shadowColor = 'rgba(8,4,2,0.85)';
       ctx.shadowBlur = 10;
       ctx.fillStyle = rgb(theme.glow, pulse);
-      drawFit(ctx, tTouch(hint, coarse), vw / 2, WORLD_H * 0.72, vw - 80, 18, fontKai());
+      drawFit(ctx, tTouch(hint, coarse), vw / 2, uiHeight() * 0.72, vw - 80, uiFont(18), fontKai());
       ctx.shadowBlur = 0;
     }
 
     // 大招·神力槽（底部居中）：圆端细槽 + 金泉渐充；满则朱印「夸」脉动待发
     const barW = 200, barH = 6;
-    const bx = vw / 2 - barW / 2, by = WORLD_H - 26;
+    const bx = vw / 2 - barW / 2, by = uiHeight() - 26;
     const ready = game.chargeReady;
     const frac = Math.min(1, game.charge);
     roundRectPath(ctx, bx, by, barW, barH, barH / 2);
@@ -153,7 +163,7 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
     ctx.lineWidth = 1;
     ctx.stroke();
     ctx.textAlign = 'right';
-    ctx.font = `12px ${fontKai()}`;
+    ctx.font = `${uiFont(12)}px ${fontKai()}`;
     ctx.fillStyle = 'rgba(255,240,220,0.6)';
     ctx.fillText(t('hud.charge'), bx - 10, by - 4);
     if (ready) {
@@ -165,7 +175,7 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
       ctx.shadowColor = 'rgba(8,4,2,0.85)';
       ctx.shadowBlur = 10;
       ctx.fillStyle = rgb(theme.glow, pulse);
-      drawFit(ctx, tTouch('hint.ult', coarse), vw / 2, by - 26, vw - 80, 18, fontKai());
+      drawFit(ctx, tTouch('hint.ult', coarse), vw / 2, by - 26, vw - 80, uiFont(18), fontKai());
       ctx.shadowBlur = 0;
     }
     return;
@@ -174,38 +184,38 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   if (game.state === 'title') {
     ctx.textAlign = 'center';
     // 题名·逐光
-    const titleY = WORLD_H * 0.22;
-    ctx.font = `54px ${fontKai()}`;
+    const titleY = uiHeight() * 0.22;
+    ctx.font = `${uiFont(54)}px ${fontKai()}`;
     ctx.shadowColor = rgb(theme.glow, 0.9);
     ctx.shadowBlur = 28;
     ctx.fillStyle = '#f7ecd8';
     ctx.fillText(t('title.main'), vw / 2, titleY);
     ctx.shadowBlur = 0;
     // 笔意细线分隔
-    brushRule(ctx, vw / 2, WORLD_H * 0.35, 280, theme.glow, 0.5);
+    brushRule(ctx, vw / 2, uiHeight() * 0.35, 280, theme.glow, 0.5);
     // 副题·夸父逐日
-    ctx.font = `22px ${fontKai()}`;
+    ctx.font = `${uiFont(22)}px ${fontKai()}`;
     ctx.fillStyle = rgb(theme.glow, 0.92);
-    ctx.fillText(t('title.sub'), vw / 2, WORLD_H * 0.385);
+    ctx.fillText(t('title.sub'), vw / 2, uiHeight() * 0.385);
     // 楔子
     ctx.fillStyle = 'rgba(240,228,210,0.58)';
-    drawFit(ctx, t('title.prologue'), vw / 2, WORLD_H * 0.45, vw - 100, 14, fontKai());
+    drawFit(ctx, t('title.prologue'), vw / 2, uiHeight() * 0.45, vw - 100, uiFont(14), fontKai());
     // 模式横幅：常规无尽 / 今日挑战（含日期）+ 切换提示
     const daily = game.mode === 'daily';
     const date = game.boardKey.startsWith('daily:') ? game.boardKey.slice(6) : '';
-    ctx.font = `19px ${fontKai()}`;
+    ctx.font = `${uiFont(19)}px ${fontKai()}`;
     ctx.fillStyle = rgb(theme.glow, 0.95);
-    ctx.fillText(daily ? `${t('mode.daily')} · ${date}` : t('mode.endless'), vw / 2, WORLD_H * 0.52);
+    ctx.fillText(daily ? `${t('mode.daily')} · ${date}` : t('mode.endless'), vw / 2, uiHeight() * 0.52);
     ctx.fillStyle = 'rgba(240,228,210,0.55)';
-    drawFit(ctx, `${t(daily ? 'mode.dailyHint' : 'mode.endlessHint')}　·　${tTouch('mode.switch', coarse)}`, vw / 2, WORLD_H * 0.52 + 26, vw - 100, 12, fontKai());
+    drawFit(ctx, `${t(daily ? 'mode.dailyHint' : 'mode.endlessHint')}　·　${tTouch('mode.switch', coarse)}`, vw / 2, uiHeight() * 0.52 + 26, vw - 100, uiFont(12), fontKai());
     // 只显示当前设备的操作行：触屏端示按钮，键盘端示键位（两行并陈徒增噪）
     ctx.fillStyle = 'rgba(255,248,235,0.72)';
-    drawFit(ctx, t(coarse ? 'title.ctrl3' : 'title.ctrl1'), vw / 2, WORLD_H * 0.63, vw - 100, 15, fontKai());
-    drawFit(ctx, t('title.ctrl2'), vw / 2, WORLD_H * 0.63 + 26, vw - 100, 15, fontKai());
+    drawFit(ctx, t(coarse ? 'title.ctrl3' : 'title.ctrl1'), vw / 2, uiHeight() * 0.63, vw - 100, uiFont(15), fontKai());
+    drawFit(ctx, t('title.ctrl2'), vw / 2, uiHeight() * 0.63 + 26, vw - 100, uiFont(15), fontKai());
     if (Math.floor(performance.now() / 600) % 2 === 0) {
       ctx.fillStyle = rgb(theme.glow);
-      ctx.font = `16px ${fontKai()}`;
-      ctx.fillText(tTouch('title.start', coarse), vw / 2, WORLD_H * 0.75);
+      ctx.font = `${uiFont(16)}px ${fontKai()}`;
+      ctx.fillText(tTouch('title.start', coarse), vw / 2, uiHeight() * 0.75);
     }
     // 下角两枚牌：左「? 帮助」、右「地球 当前语言」。
     // 原本是两行暗淡文字，读起来像操作说明而非可点控件。
@@ -226,9 +236,9 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   const causeFade = game.dying
     ? Math.min(1, (1 - game.dyingT / DYING_TIME) * 3.2) // 回放前三成时间里浮出
     : 1;
-  ctx.font = `22px ${fontKai()}`;
+  ctx.font = `${uiFont(22)}px ${fontKai()}`;
   ctx.fillStyle = `rgba(248,238,222,${(0.88 * causeFade).toFixed(3)})`;
-  ctx.fillText(t(DEATH_KEY[game.deathCause ?? 'darkness'] ?? 'death.darkness'), vw / 2, WORLD_H * 0.22);
+  ctx.fillText(t(DEATH_KEY[game.deathCause ?? 'darkness'] ?? 'death.darkness'), vw / 2, uiHeight() * 0.22);
 
   // 成绩、称号、榜单随结局图一起淡入（见 renderer 的 endingAlpha，同一条曲线）。
   // 回放主体那一秒多里它们一律不上：一上就把死亡现场盖住了，而那正是回放的全部意义。
@@ -239,28 +249,28 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   }
   ctx.globalAlpha = contentAlpha;
   // 功业·本局总分，朱印钤记（如画作落款用印）
-  ctx.font = `48px ${fontHud()}`;
+  ctx.font = `${uiFont(48)}px ${fontHud()}`;
   ctx.fillStyle = '#f7ecd8';
   const scoreStr = `${st?.score ?? 0}`;
-  ctx.fillText(scoreStr, vw / 2, WORLD_H * 0.30);
-  brushRule(ctx, vw / 2, WORLD_H * 0.30 + 62, 200, theme.glow, 0.42);
+  ctx.fillText(scoreStr, vw / 2, uiHeight() * 0.30);
+  brushRule(ctx, vw / 2, uiHeight() * 0.30 + 62, 200, theme.glow, 0.42);
   // 称号：按本局功业授名（身份与进阶感）
-  ctx.font = `21px ${fontKai()}`;
+  ctx.font = `${uiFont(21)}px ${fontKai()}`;
   ctx.fillStyle = rgb(theme.glow, 0.95);
-  ctx.fillText(`「${t(rankKeyFor(st?.score ?? 0))}」`, vw / 2, WORLD_H * 0.40);
-  ctx.font = `15px ${fontKai()}`;
+  ctx.fillText(`「${t(rankKeyFor(st?.score ?? 0))}」`, vw / 2, uiHeight() * 0.40);
+  ctx.font = `${uiFont(15)}px ${fontKai()}`;
   ctx.fillStyle = 'rgba(255,245,230,0.82)';
-  ctx.fillText(`${t('death.dist')} ${st?.distanceM ?? 0} ${t('hud.dist')}    ${t('death.best')} ${best}`, vw / 2, WORLD_H * 0.46);
+  ctx.fillText(`${t('death.dist')} ${st?.distanceM ?? 0} ${t('hud.dist')}    ${t('death.best')} ${best}`, vw / 2, uiHeight() * 0.46);
   // 榜
-  ctx.font = `13px ${fontKai()}`;
+  ctx.font = `${uiFont(13)}px ${fontKai()}`;
   ctx.fillStyle = 'rgba(255,245,230,0.75)';
-  let y = WORLD_H * 0.52;
+  let y = uiHeight() * 0.52;
   if (board.status === 'pending') {
-    drawFit(ctx, t('death.pending'), vw / 2, y, vw - 80, 13, fontKai());
+    drawFit(ctx, t('death.pending'), vw / 2, y, vw - 80, uiFont(13), fontKai());
   } else if (board.status === 'offline') {
     // 现在这行会把「为什么没上榜」说清楚，比原来光一个「离线」长得多，
     // 必须走 drawFit——窄视口下 fillText 会直接顶出画布。
-    drawFit(ctx, t('death.offline'), vw / 2, y, vw - 80, 13, fontKai());
+    drawFit(ctx, t('death.offline'), vw / 2, y, vw - 80, uiFont(13), fontKai());
   } else if (board.status === 'done') {
     ctx.fillStyle = rgb(theme.glow, 0.9);          // 榜名：今日挑战榜 / 天下逐日榜
     ctx.fillText(t(game.mode === 'daily' ? 'board.daily' : 'board.endless'), vw / 2, y);
@@ -269,7 +279,11 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
     ctx.fillStyle = 'rgba(255,245,230,0.75)';
     ctx.fillText(`${t('death.rank')} ${board.rank ?? '?'}`, vw / 2, y);
     y += 15;
-    (board.top ?? []).slice(0, 5).forEach((row, i) => {
+    // 短屏（裁天空后可见高只有 448）榜身摆不下五行：字号未随之缩小，末行
+    // 「按 R · 再逐一程」——这一屏唯一的出口——会被挤到画外。榜在手机上本
+    // 就是一瞥，且自己的名次另有「天下第 N」单独一行，砍到三行不丢信息。
+    const rows = uiHeight() < WORLD_H ? 3 : 5;
+    (board.top ?? []).slice(0, rows).forEach((row, i) => {
       // 截断必须留省略号：`Sunrunner` 硬切成 `Sunrunne` 会被当成写错了名字
       const name = row.name.length > 8 ? `${row.name.slice(0, 7)}…` : row.name;
       // 榜上有我就点亮那一行——否则玩家盯着五个名字也认不出哪个是自己，
@@ -283,16 +297,16 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
   }
 
   // 底部收尾：随榜单高度自适应下移，避免与榜行相撞
-  let fy = Math.max(WORLD_H * 0.60, y + 34);
-  ctx.font = `16px ${fontKai()}`;
+  let fy = Math.max(uiHeight() * 0.60, y + 34);
+  ctx.font = `${uiFont(16)}px ${fontKai()}`;
   ctx.fillStyle = 'rgba(240,228,210,0.78)';
   ctx.fillText(t('death.footer'), vw / 2, fy);      // 弃其杖，化为邓林
   // 分享是这一屏的第二动作，此前 0.6 的暖白压在亮结局图上近乎隐形，
   // 等于没有出口；提到与「再逐一程」相称的亮度。
   ctx.fillStyle = 'rgba(255,240,220,0.85)';
-  drawFit(ctx, tTouch('death.share', coarse), vw / 2, fy + 30, vw - 80, 13, fontKai());
+  drawFit(ctx, tTouch('death.share', coarse), vw / 2, fy + 30, vw - 80, uiFont(13), fontKai());
   ctx.fillStyle = rgb(theme.glow);
-  drawFit(ctx, tTouch('death.restart', coarse), vw / 2, fy + 60, vw - 80, 16, fontKai());
+  drawFit(ctx, tTouch('death.restart', coarse), vw / 2, fy + 60, vw - 80, uiFont(16), fontKai());
   ctx.shadowBlur = 0;
   // 死亡页也放一枚语言牌：触屏此前只能在标题页切语言，结算页是唯一「盯着
   // 一屏文字却没有任何菜单入口」的地方，这正是要补的可达性缺口。
@@ -302,7 +316,16 @@ export function drawUI(ctx: CanvasRenderingContext2D, game: Game, theme: Theme, 
 
 /** 竖屏提示：触屏竖持时**铺满整屏**（在设备像素空间绘制，不受世界视口信箱化影响）
  *  提示旋转横屏，避免大幅黑边与局促视野。w/h 为 CSS 像素屏幕尺寸。 */
-export function drawRotateHint(ctx: CanvasRenderingContext2D, theme: Theme, w: number, h: number) {
+/**
+ * 竖持提示。`canFullscreen` 为真时多给一行「点一下就替你办」——
+ *
+ * 「请旋转设备」对**开了系统方向锁的人是句做不到的话**，而那正是首触自动锁横屏
+ * 要救的那批人：他们物理转手机也转不过来，此前只能一直盯着这句提示。所以要把
+ * 「你去转」换成「点一下，我来转」。但这句只在浏览器真支持全屏时才出现——
+ * iPhone Safari 不实现元素全屏，那里点了什么也不会发生，许诺一件不会兑现的事
+ * 比不许诺更糟。
+ */
+export function drawRotateHint(ctx: CanvasRenderingContext2D, theme: Theme, w: number, h: number, canFullscreen = false) {
   ctx.fillStyle = 'rgba(14,8,6,0.96)';
   ctx.fillRect(0, 0, w, h);
   ctx.textAlign = 'center';
@@ -324,6 +347,12 @@ export function drawRotateHint(ctx: CanvasRenderingContext2D, theme: Theme, w: n
   ctx.fillStyle = rgb(theme.glow, 0.9);
   ctx.font = `${Math.round(18 * s)}px ${fontKai()}`;
   ctx.fillText(t('rotate.sub'), cx, cy + 76 * s);
+  if (canFullscreen) {
+    // 走 drawFit：这句是五语种里最长的一条，竖屏只有 390 CSS px 宽，
+    // 直接 fillText 会横着漏出屏幕两侧
+    ctx.fillStyle = 'rgba(240,228,210,0.62)';
+    drawFit(ctx, t('rotate.tap'), cx, cy + 108 * s, w - 48 * s, Math.round(14 * s), fontKai());
+  }
   ctx.textBaseline = 'top';
 }
 
@@ -364,7 +393,7 @@ function speakerGlyph(ctx: CanvasRenderingContext2D, cx: number, cy: number, s: 
 export function overlayPanelBounds(vw: number, topFy: number, bottomFy: number, widthFrac: number) {
   const w = vw * widthFrac;
   const x0 = (vw - w) / 2;
-  return { x0, x1: x0 + w, y0: WORLD_H * topFy, y1: WORLD_H * bottomFy };
+  return { x0, x1: x0 + w, y0: uiHeight() * topFy, y1: uiHeight() * bottomFy };
 }
 
 /**
@@ -379,7 +408,7 @@ export function overlayPanel(
   topFy: number, bottomFy: number, widthFrac = 0.4,
 ) {
   ctx.fillStyle = 'rgba(10,6,4,0.86)';
-  ctx.fillRect(0, 0, vw, WORLD_H);
+  ctx.fillRect(0, 0, vw, uiHeight());
 
   const b = overlayPanelBounds(vw, topFy, bottomFy, widthFrac);
   roundRectPath(ctx, b.x0, b.y0, b.x1 - b.x0, b.y1 - b.y0, 10);
@@ -391,28 +420,38 @@ export function overlayPanel(
   return b;
 }
 
-/** 帮助浮层的内容布局常量。绘制与命中共用，避免两处各写一份而漂移。 */
-const HELP_LAYOUT = {
-  padTop: 26,      // 面板顶 → 标题
-  titleH: 58,      // 标题 + 笔意细线占高
-  rowH: 34,
-  rows: 8,          // 与 drawHelp 里的 rows 数组等长；改一处必须改另一处
-  soundGap: 22,    // 末行 → 声音钮中心
-  soundH: 56,      // 声音钮整体占高（仅触屏）
-  closeH: 40,
-  padBottom: 18,
-};
+/**
+ * 帮助浮层的内容布局常量。绘制与命中共用，避免两处各写一份而漂移。
+ *
+ * 数值按 576 的世界高手调，故整体随可见高等比收拢（见 viewport 的 skyCrop）：
+ * 触屏端的内容高本就是 470，逼近 576，短屏裁到 448 之后照原值摆会直接漏出
+ * 面板与屏幕之外。收拢后行距 34→26，17px 的行文仍装得下。
+ */
+function helpLayout() {
+  const k = uiHeight() / WORLD_H;
+  return {
+    k,
+    padTop: 26 * k,   // 面板顶 → 标题
+    titleH: 58 * k,   // 标题 + 笔意细线占高
+    rowH: 34 * k,
+    rows: 8,          // 与 drawHelp 里的 rows 数组等长；改一处必须改另一处
+    soundGap: 22 * k, // 末行 → 声音钮中心
+    soundH: 56 * k,   // 声音钮整体占高（仅触屏）
+    closeH: 40 * k,
+    padBottom: 18 * k,
+  };
+}
 
 function helpBodyHeight(coarse: boolean): number {
-  const { padTop, titleH, rowH, rows, soundH, closeH, padBottom } = HELP_LAYOUT;
+  const { padTop, titleH, rowH, rows, soundH, closeH, padBottom } = helpLayout();
   return padTop + titleH + rowH * rows + (coarse ? soundH : 0) + closeH + padBottom;
 }
 
 /** 帮助面板的世界坐标边界。 */
 export function helpPanelBounds(vw: number, coarse: boolean) {
   const h = helpBodyHeight(coarse);
-  const y0 = Math.max(WORLD_H * 0.05, (WORLD_H - h) / 2);
-  return overlayPanelBounds(vw, y0 / WORLD_H, (y0 + h) / WORLD_H, 0.62);
+  const y0 = Math.max(uiHeight() * 0.05, (uiHeight() - h) / 2);
+  return overlayPanelBounds(vw, y0 / uiHeight(), (y0 + h) / uiHeight(), 0.62);
 }
 
 /**
@@ -423,32 +462,33 @@ export function helpPanelBounds(vw: number, coarse: boolean) {
  */
 export function helpSoundCenterY(coarse: boolean): number {
   const b = helpPanelBounds(820, coarse);   // y 与 vw 无关，取任意值即可
-  const { padTop, titleH, rowH, rows, soundGap } = HELP_LAYOUT;
+  const { padTop, titleH, rowH, rows, soundGap } = helpLayout();
   return b.y0 + padTop + titleH + rowH * rows + soundGap;
 }
 
 export function drawHelp(ctx: CanvasRenderingContext2D, theme: Theme, vw: number, muted = false, coarse = false) {
   const b = helpPanelBounds(vw, coarse);
-  overlayPanel(ctx, theme, vw, b.y0 / WORLD_H, b.y1 / WORLD_H, 0.62);
+  const L = helpLayout();
+  overlayPanel(ctx, theme, vw, b.y0 / uiHeight(), b.y1 / uiHeight(), 0.62);
 
   ctx.textAlign = 'center';
   ctx.textBaseline = 'top';
-  let y = b.y0 + HELP_LAYOUT.padTop;
+  let y = b.y0 + L.padTop;
 
-  ctx.font = `30px ${fontKai()}`;
+  ctx.font = `${uiFont(30)}px ${fontKai()}`;
   ctx.shadowColor = rgb(theme.glow, 0.8);
   ctx.shadowBlur = 18;
   ctx.fillStyle = '#f7ecd8';
   ctx.fillText(t('help.title'), vw / 2, y);
   ctx.shadowBlur = 0;
-  brushRule(ctx, vw / 2, y + 38, 200, theme.glow, 0.5);
-  y += HELP_LAYOUT.titleH;
+  brushRule(ctx, vw / 2, y + 38 * L.k, 200, theme.glow, 0.5);
+  y += L.titleH;
 
   const rows = ['help.move', 'help.jump', 'help.dash', 'help.ult', 'help.mote', 'help.water', 'help.avatar', 'help.keys'];
   ctx.fillStyle = 'rgba(255,246,232,0.9)';
   for (const key of rows) {
-    drawFit(ctx, tTouch(key, coarse), vw / 2, y, b.x1 - b.x0 - 40, 17, fontKai());
-    y += HELP_LAYOUT.rowH;
+    drawFit(ctx, tTouch(key, coarse), vw / 2, y, b.x1 - b.x0 - 40, uiFont(17), fontKai());
+    y += L.rowH;
   }
 
   // 声音开关：触屏无 M 键，画一枚可点的声音钮（喇叭字形 + 开/关）
@@ -460,16 +500,16 @@ export function drawHelp(ctx: CanvasRenderingContext2D, theme: Theme, vw: number
     ctx.strokeStyle = rgb(theme.glow, muted ? 0.32 : 0.7); ctx.lineWidth = 1; ctx.stroke();
     speakerGlyph(ctx, vw / 2 - 42, my, 1.5, theme.glow, muted ? 0.5 : 0.95, muted);
     ctx.textAlign = 'left'; ctx.textBaseline = 'middle';
-    ctx.font = `18px ${fontKai()}`;
+    ctx.font = `${uiFont(18)}px ${fontKai()}`;
     ctx.fillStyle = muted ? 'rgba(240,228,210,0.55)' : rgb(theme.glow, 0.95);
     ctx.fillText(t(muted ? 'help.sound.off' : 'help.sound.on'), vw / 2 - 26, my + 1);
     ctx.textBaseline = 'top'; ctx.textAlign = 'center';
   }
 
-  ctx.font = `15px ${fontKai()}`;
+  ctx.font = `${uiFont(15)}px ${fontKai()}`;
   ctx.fillStyle = rgb(theme.glow);
   // 触屏没有 H 键，必须走 tTouch——旁边的语言菜单一直是这么做的，这里漏了
-  ctx.fillText(tTouch('help.close', coarse), vw / 2, b.y1 - HELP_LAYOUT.closeH + 6);
+  ctx.fillText(tTouch('help.close', coarse), vw / 2, b.y1 - L.closeH + 6);
 }
 
 /** 帮助浮层里声音钮的尺寸；其 y 由 helpSoundCenterY 按内容流算出。 */
@@ -510,9 +550,10 @@ export const CHIP = {
 
 /** 牌子的世界坐标矩形。绘制与命中共用，不得两处各写一份。 */
 export function chipRect(side: 'left' | 'right', vw: number) {
+  // 牌贴在屏幕角上，安全区必须算进去——绘制与命中读的是同一个函数，改这里两边同步
   return {
-    x: side === 'left' ? CHIP.margin : vw - CHIP.margin - CHIP.w,
-    y: WORLD_H - CHIP.bottom - CHIP.h,
+    x: side === 'left' ? uiInsetL(CHIP.margin) : vw - uiInsetR(CHIP.margin) - CHIP.w,
+    y: uiHeight() - uiInsetB(CHIP.bottom) - CHIP.h,
     w: CHIP.w,
     h: CHIP.h,
   };
@@ -565,7 +606,7 @@ function chipKey(ctx: CanvasRenderingContext2D, theme: Theme, r: { x: number; y:
   ctx.save();
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
-  ctx.font = `11px ${fontKaiFor('en')}`;
+  ctx.font = `${uiFont(11)}px ${fontKaiFor('en')}`;
   ctx.fillStyle = rgb(theme.glow, 0.5);
   ctx.fillText(key, r.x + r.w - 13, r.y + r.h / 2 + 1);
   ctx.restore();
@@ -582,7 +623,7 @@ export function drawLangChip(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
   ctx.textBaseline = 'middle';
   const cur = getLocale();
   // 自称须以其本身文字显示，故字体跟着该语种走，否则日韩会出豆腐块
-  ctx.font = `13px ${fontKaiFor(cur)}`;
+  ctx.font = `${uiFont(13)}px ${fontKaiFor(cur)}`;
   ctx.fillStyle = 'rgba(247,236,216,0.9)';
   ctx.fillText(LOCALES.find(l => l.id === cur)?.native ?? '', r.x + 30, cy + 1, CHIP.w - 54);
   ctx.restore();
@@ -597,11 +638,11 @@ export function drawHelpChip(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
   chipBase(ctx, theme, r);
   ctx.textBaseline = 'middle';
   ctx.textAlign = 'center';
-  ctx.font = `15px ${fontKai()}`;
+  ctx.font = `${uiFont(15)}px ${fontKai()}`;
   ctx.fillStyle = rgb(theme.glow, 0.85);
   ctx.fillText('?', r.x + 17, cy + 1);
   ctx.textAlign = 'left';
-  ctx.font = `13px ${fontKai()}`;
+  ctx.font = `${uiFont(13)}px ${fontKai()}`;
   ctx.fillStyle = 'rgba(247,236,216,0.9)';
   ctx.fillText(t('help.label'), r.x + 30, cy + 1, CHIP.w - 54);
   ctx.restore();
@@ -610,7 +651,7 @@ export function drawHelpChip(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
 
 // ---- 语言菜单 ----
 //
-// 命中与绘制都用**世界**归一化坐标（相对 vw × WORLD_H），调用方须先用
+// 命中与绘制都用**世界**归一化坐标（相对 vw × uiHeight()），调用方须先用
 // Renderer.screenToWorld 把指针坐标换算过来。
 //
 // 早先这里用的是屏幕归一化坐标，而绘制在 renderUI 的信箱化变换里——
@@ -628,7 +669,7 @@ export function langMenuRowCenter(i: number): { fx: number; fy: number } {
 /**
  * 命中语言菜单的某一项则返回其 locale；点在面板外返回 null（调用方据此关闭菜单）。
  * @param fx 世界坐标 x / vw
- * @param fy 世界坐标 y / WORLD_H
+ * @param fy 世界坐标 y / uiHeight()
  */
 /** 菜单面板的世界归一化上下边界。绘制与命中共用，勿两处各写一份。 */
 export const MENU_PANEL = {
@@ -666,14 +707,14 @@ export function drawLangMenu(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
   ctx.textAlign = 'center';
   ctx.textBaseline = 'middle';
   // 标题：帮助浮层有「操作说明」，语言菜单原本什么都没有，误开的人无从判断这是什么
-  ctx.font = `20px ${fontKai()}`;
+  ctx.font = `${uiFont(20)}px ${fontKai()}`;
   ctx.fillStyle = 'rgba(247,236,216,0.92)';
   ctx.fillText(t('lang.title'), vw / 2, b.y0 + 30);
   brushRule(ctx, vw / 2, b.y0 + 46, 120, theme.glow, 0.45);
 
   const cur = getLocale();
   LOCALES.forEach(({ id, native }, i) => {
-    const cy = WORLD_H * langMenuRowCenter(i).fy;
+    const cy = uiHeight() * langMenuRowCenter(i).fy;
     const on = id === cur;
     if (on) {
       roundRectPath(ctx, x0 + 12, cy - 17, x1 - x0 - 24, 34, 6);
@@ -681,23 +722,27 @@ export function drawLangMenu(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
       ctx.fill();
     }
     // 各语种自称须以其本身文字显示，故字体也要跟着切，否则日韩会出豆腐块
-    ctx.font = `${on ? 20 : 18}px ${fontKaiFor(id)}`;
+    ctx.font = `${uiFont(on ? 20 : 18)}px ${fontKaiFor(id)}`;
     if (!coarse) {                       // 键盘端：左侧标出可直选的数字键
       ctx.save();
       ctx.textAlign = 'left';
-      ctx.font = `13px ${fontKaiFor('en')}`;
+      ctx.font = `${uiFont(13)}px ${fontKaiFor('en')}`;
       ctx.fillStyle = rgb(theme.glow, on ? 0.8 : 0.42);
       ctx.fillText(String(i + 1), x0 + 22, cy);
       ctx.restore();
-      ctx.font = `${on ? 20 : 18}px ${fontKaiFor(id)}`;
+      ctx.font = `${uiFont(on ? 20 : 18)}px ${fontKaiFor(id)}`;
     }
     ctx.fillStyle = on ? rgb(theme.glow, 1) : 'rgba(240,228,210,0.72)';
-    ctx.fillText(on ? `✓ ${native}` : native, (x0 + x1) / 2, cy);
+    // 当前项不额外加勾。这一行本来就有三重信号：高亮底、字号大两号、满不透明的
+    // 辉光色。原先那个 `✓`(U+2713) 是全 UI 里唯一一个落在自身字体栈字符集之外的
+    // 字形——KAI_KO/KAI_JA 与它们末尾的 serif 都不含它，能不能显示全靠浏览器的
+    // 逐字回退，而那不保证。离屏渲染实测：韩文那行出的是豆腐块「▯ 한국어」。
+    ctx.fillText(native, (x0 + x1) / 2, cy);
   });
 
   // 关闭提示：帮助浮层有，语言菜单原本没有——触屏用户不知道点外面能关
   ctx.textAlign = 'center';
-  ctx.font = `13px ${fontKai()}`;
+  ctx.font = `${uiFont(13)}px ${fontKai()}`;
   ctx.fillStyle = rgb(theme.glow, 0.66);
   ctx.fillText(tTouch('lang.close', coarse), vw / 2, b.y1 - 22);
   ctx.textBaseline = 'top';
@@ -717,7 +762,7 @@ export function drawLangHint(ctx: CanvasRenderingContext2D, theme: Theme, vw: nu
   ctx.shadowBlur = 8;
   // 画在语言牌**上方**：它指的就是那枚牌，压在牌上反而挡住自己所指之物
   ctx.textBaseline = 'bottom';
-  drawFit(ctx, tf('lang.autoPicked', { lang: native }), vw - 16, chipRect('right', vw).y - 8, vw * 0.62, 13, fontKai());
+  drawFit(ctx, tf('lang.autoPicked', { lang: native }), vw - 16, chipRect('right', vw).y - 8, vw * 0.62, uiFont(13), fontKai());
   ctx.textBaseline = 'top';
   ctx.restore();
 }

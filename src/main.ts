@@ -14,8 +14,8 @@ import { FX } from './render/fx';
 import { Popups } from './render/popups';
 import { t, setLocale, pickLocale, LOCALES, type Locale, type StringKey } from './render/strings';
 import { loadAvatar, saveAvatar, clearAvatar, selectPreset, currentAvatarId, presetUrl, PRESETS } from './game/avatar';
-import { worldToClient } from './render/viewport';
-import { MOTE_SCORE, KILL_BONUS, WORLD_H, DEATH_FADE } from './game/constants';
+import { worldToClient, uiHeight, fitWorld, setSafeArea } from './render/viewport';
+import { MOTE_SCORE, DEATH_FADE } from './game/constants';
 import { dailySeed } from './game/generator';
 import { dangerLevel } from './game/darkness';
 import { submitScore, fetchRank, fetchTop, isOnline, type BoardState } from './api/leaderboard';
@@ -191,7 +191,7 @@ function placeAvBar(state: string) {
   avPlacedFor = key;
   const dead = state === 'dead';
   avBar.classList.toggle('anchor-bottom', dead);
-  const worldY = WORLD_H * (dead ? 0.99 : 0.85);
+  const worldY = uiHeight() * (dead ? 0.99 : 0.85);
   const vw = renderer.viewWidth;
   const rect = canvas.getBoundingClientRect();
   const p = worldToClient(vw / 2, worldY, rect, canvas.width, canvas.height, vw);
@@ -241,6 +241,8 @@ function chooseLocale(l: Locale) {
 // 今日挑战：按 UTC 日期派发全球统一的当日种子（同日同关卡、同场竞逐）
 const todayUTC = new Date().toISOString().slice(0, 10);
 game.setDaily(dailySeed(todayUTC), todayUTC);
+// 叙事跨局累积：开局注入进度，死时写回。不这么做，十二段里九成人只看得到两段。
+game.seenNar = store.seenNar;
 
 const board: BoardState = { status: 'offline', rank: null, top: null };
 
@@ -253,7 +255,29 @@ let deadTapGuardUntil = 0; // 死亡瞬间起短暂锁触，防连点误触分�
 let heartbeatT = 0;        // 长夜逼近的心跳计时（见主循环里的告警段）
 let knellPending = false;  // 死亡落幕音待触发（黑场转结局图那一沿只响一次）
 // 触屏设备（粗指针）：用于竖屏旋转提示
+/**
+ * 把屏幕安全区从 CSS 读进渲染层。
+ *
+ * `env(safe-area-inset-*)` 只有 CSS 求得了值，而 HUD 是画在 canvas 里的、吃不到 CSS，
+ * 所以 index.html 先把四个值挂成自定义属性，这里读出来交给 viewport。触屏按键一直
+ * 是吃安全区的，HUD 却没有——iPhone 横持时左上角那组数字就压在刘海底下。
+ *
+ * 读不出来（老浏览器把自定义属性原样回吐）就退回 0，`uiInset*` 里的物理下限仍在，
+ * 不至于比改之前更差。
+ */
+function syncSafeArea() {
+  const cs = getComputedStyle(document.documentElement);
+  const px = (n: string) => parseFloat(cs.getPropertyValue(n)) || 0;
+  setSafeArea({ l: px('--sa-l'), r: px('--sa-r'), t: px('--sa-t'), b: px('--sa-b') });
+}
+syncSafeArea();
+addEventListener('resize', syncSafeArea);
+addEventListener('orientationchange', syncSafeArea);
+document.addEventListener('fullscreenchange', syncSafeArea);
+
 const isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+/** 浏览器是否真能进元素全屏。iPhone Safari 不实现（只有 <video> 有），那里不许这个诺。 */
+const CAN_FULLSCREEN = typeof document.documentElement.requestFullscreen === 'function';
 /** 竖持手机：旋转提示铺满整屏，此时任何浮层都看不见，不该被打开。 */
 const rotateHintUp = () => isCoarsePointer && innerHeight > innerWidth * 1.1;
 
@@ -389,7 +413,7 @@ canvas.addEventListener('pointerdown', e => {
   // 拿屏幕比例去比，信箱化越严重错得越多。
   const world = renderer.screenToWorld(e.clientX, e.clientY);
   const vw = renderer.viewWidth;
-  const fx = world.x / vw, fy = world.y / WORLD_H;
+  const fx = world.x / vw, fy = world.y / uiHeight();
 
   // ── 1. 旋转提示盖住整屏：任何浮层都不可见，别让盲点变成误选 ──
   if (rotateHintUp()) {
@@ -469,14 +493,49 @@ function drawFrame() {
       drawLangHint(ctx, theme, renderer.viewWidth, Math.min(1, langHintLeft / 1.2));
     }
     // 触屏竖持：提示旋转横屏——铺满整屏（重置为设备像素空间，避开世界视口信箱化）
+    // 尺寸取画布盒子而非窗口，与 renderer 算后备缓冲的口径一致；两者在手机上会
+    // 不一致（dvh vs innerHeight），按窗口铺就盖不满自己这张画布。
     if (isCoarsePointer && innerHeight > innerWidth * 1.1) {
       ctx.save();
       const d = Math.min(devicePixelRatio || 1, 2);
       ctx.setTransform(d, 0, 0, d, 0, 0);
-      drawRotateHint(ctx, theme, innerWidth, innerHeight);
+      drawRotateHint(ctx, theme, canvas.clientWidth || innerWidth, canvas.clientHeight || innerHeight, CAN_FULLSCREEN);
       ctx.restore();
     }
   });
+  if (DIAG) drawDiag();
+}
+
+/**
+ * 真机尺寸诊断：地址后加 `?diag=1` 打开。
+ *
+ * 移动端的尺寸问题（画面在闪、没按预期放大）在桌面上一律复现不出来，靠猜要来回
+ * 好几轮。这一行把决策链上的每个数直接摆在屏幕上：视口 → dpr → 后备缓冲 → 裁掉
+ * 多少天 → 最终每世界单位占几个 CSS 像素。`realloc` 是后备缓冲的重分配次数——
+ * 它要是持续上涨，就是每帧在重建画布（那正是「一直在闪」的样子）。
+ */
+const DIAG = new URLSearchParams(location.search).get('diag') === '1';
+let diagRealloc = 0, diagLastW = 0, diagLastH = 0;
+function drawDiag() {
+  const ctx = canvas.getContext('2d')!;
+  if (canvas.width !== diagLastW || canvas.height !== diagLastH) {
+    diagRealloc++; diagLastW = canvas.width; diagLastH = canvas.height;
+  }
+  const dpr = Math.min(devicePixelRatio || 1, 2);
+  const { crop, visH, vw, scale } = fitWorld(canvas.width, canvas.height, dpr);
+  const line = `win ${innerWidth}x${innerHeight} box ${canvas.clientWidth}x${canvas.clientHeight} dpr ${devicePixelRatio}→${dpr} | buf ${canvas.width}x${canvas.height}`
+    + ` | crop ${crop.toFixed(1)} visH ${visH.toFixed(0)} vw ${vw.toFixed(0)}`
+    + ` | ${(scale / dpr).toFixed(3)} csspx/world | realloc ${diagRealloc}`
+    + ` | fs ${document.fullscreenElement ? 'Y' : 'N'} ${screen.orientation?.type ?? '?'}`;
+  ctx.save();
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.font = `${Math.round(11 * dpr)}px ui-monospace, monospace`;
+  const w = ctx.measureText(line).width + 12 * dpr;
+  ctx.fillStyle = 'rgba(0,0,0,0.75)';
+  ctx.fillRect(0, 0, w, 20 * dpr);
+  ctx.fillStyle = '#7CFC9A';
+  ctx.fillText(line, 6 * dpr, 14 * dpr);
+  ctx.restore();
 }
 
 const loop = createLoop(
@@ -535,11 +594,23 @@ const loop = createLoop(
     if (game.justKilledEnemy) {
       particles.spawn(cx, cy, { color: 'rgba(255,235,200,0.98)', count: 22, spread: 210, life: 0.55 });
       audio.kill();
-      fx.addShake(0.5);
-      fx.hitstop(0.08);       // 击杀顿帧
-      fx.triggerFlash(0.85);  // 白闪
-      fx.punch(0.12);         // 特写：镜头瞬间拉近
-      popups.spawn(cx, p.pos.y - 6, `+${KILL_BONUS}`, 'rgba(255,210,140,1)', 1.0);
+      // 反馈随连击递进：连杀数越高，震屏/顿帧/拉近越猛，「杀得越顺手越爽」
+      const k = Math.min(1, game.combo.count / 6);   // 0→1
+      fx.addShake(0.5 + 0.4 * k);
+      fx.hitstop(0.08 + 0.06 * k);       // 击杀顿帧
+      fx.triggerFlash(0.85);             // 白闪
+      fx.punch(0.12 + 0.06 * k);         // 特写：镜头瞬间拉近
+      // 飘的数必须是**这一次真加的**分：跨步走 STRIDE_KILL_BONUS、背刺走
+      // BACKSTAB_BONUS，两者都不进连杀。统一由 game 报出来，别在这里猜。
+      popups.spawn(cx, p.pos.y - 6, `+${game.lastKillBonus}`, 'rgba(255,210,140,1)', 1.0);
+    }
+    if (game.justBounced) {
+      fx.addShake(0.35);
+      fx.hitstop(0.05);
+      popups.spawn(cx, p.pos.y - 6, t('pop.bounce'), 'rgba(190,190,200,1)', 1.0);
+    }
+    if (game.justBackstabbed) {
+      popups.spawn(cx, p.pos.y - 18, t('pop.backstab'), 'rgba(255,232,170,1)', 1.2);
     }
     if (game.justStrided) {
       particles.spawn(cx, cy - 14, { color: rgb(theme.glow, 1), count: 34, spread: 280, life: 0.6 });
@@ -570,6 +641,7 @@ const loop = createLoop(
       fx.hitstop(0.09);
       if (game.runStats && game.runStats.score > best) best = game.runStats.score;
       store.best = best;
+      store.seenNar = game.seenNar;
       void onDeath(game.runStats!);
     }
     particles.update(dt);

@@ -3,13 +3,15 @@ import type { Particles } from '../engine/particles';
 import { themeAt, rgb, posHash as hash } from './theme';
 import { drawBackground } from './background';
 import { drawProps } from './props';
-import { VIEW_W, WORLD_H, PLAYER_H, RUN_SPEED, DEATH_FADE, DEATH_BLACKOUT, DYING_TIME } from '../game/constants';
+import { VIEW_W, WORLD_H, PLAYER_H, RUN_SPEED, DEATH_FADE, DEATH_BLACKOUT, DYING_TIME, CORPSE_LIFE } from '../game/constants';
 import { EMPTY_ASSETS, type Assets } from './assets';
 import type { CameraFX } from './fx';
 import type { Popups } from './popups';
 import { fontHud } from './strings';
-import { uiLetterbox, clientToWorld } from './viewport';
+import { uiLetterbox, clientToWorld, fitWorld, setUiViewport, backingSize } from './viewport';
 import { dangerLevel } from '../game/darkness';
+import { isGroundKind } from '../game/enemies';
+import { armorFrontal } from '../game/combat';
 
 const RUN_PX_PER_FRAME = 22; // 每前进这么多像素切一帧奔跑动画（距离驱动，脚不打滑）
 const SPRITE_CHAR_PX = 220;  // 玩家素材"头到脚"归一高度（与 art/process.py CHAR_PX 一致）
@@ -128,17 +130,27 @@ export class Renderer {
 
     // 限制像素密度上限：高 DPR 手机若按 3x 渲染整屏世界会吃满 GPU 掉帧，封顶 2x
     const dpr = Math.min(devicePixelRatio || 1, 2);
-    if (canvas.width !== innerWidth * dpr || canvas.height !== innerHeight * dpr) {
-      canvas.width = innerWidth * dpr;
-      canvas.height = innerHeight * dpr;
+    // 尺寸取自**画布自己的盒子**，不是窗口。两者在手机上会不一致：CSS 写的是
+    // `height: 100dvh`，而 dvh 与 `innerHeight` 在工具栏收放、进出全屏的过程中
+    // 各走各的（本机实测 innerHeight=1215 而盒子是 1215.33）。按窗口算出来的
+    // 后备缓冲会被浏览器拉伸进另一个尺寸的盒子里，画面于是「大小不对」，而渲染器
+    // 自己毫不知情——命中判定也跟着一起错。按盒子取就恒等于所见即所算。
+    // 取整必须在比较之前：canvas.width 是整数属性，拿小数去比永远不等，
+    // 每帧都会重分配后备缓冲（= 每帧清屏），手机上就是一直在闪。见 backingSize
+    const cssW = canvas.clientWidth || innerWidth;
+    const cssH = canvas.clientHeight || innerHeight;
+    const { w: cw, h: chh } = backingSize(cssW, cssH, dpr);
+    if (canvas.width !== cw || canvas.height !== chh) {
+      canvas.width = cw;
+      canvas.height = chh;
     }
-    // 有效视口宽度：按窗口宽高比自适应，宽屏铺满、多显示世界（消掉两侧黑边）
-    // 防窗口塌缩：height 为 0 时回退基准高，避免除零得 NaN 污染当帧变换
-    const ch = canvas.height || WORLD_H;
-    const VW = Math.max(820, Math.min(1400, WORLD_H * canvas.width / ch));
+    // 短屏（横持手机）裁掉上方纯天空，把缩放比从 0.68 提到 0.87——人物、HUD、
+    // 文字一起变大三成。桌面上 skyCrop 恒为 0，以下与旧式完全等价。见 viewport.ts
+    const { crop, visH, vw: VW, scale: baseScale } = fitWorld(canvas.width, canvas.height, dpr);
     this.vw = VW;
+    // UI 与命中读同一份可见高与 CSS 比例（字号下限据此抬起）
+    setUiViewport(visH, baseScale / dpr);
     // 动态相机：缩放（死亡拉近）+ 屏幕震动 + 坠亡回放的纵向下带
-    const baseScale = Math.min(canvas.width / VW, canvas.height / WORLD_H);
     const zscale = baseScale * camFx.zoom;
     // 坠崖判定是「掉出世界底 64px」，所以定格那一刻人物早已在画面之外，
     // 回放只剩一道空沟、看不见自己。把镜头往下带一截，让尸身重新入画。
@@ -153,12 +165,15 @@ export class Renderer {
     if (camDropTarget === 0 && this.camDropY < 0.5) this.camDropY = 0; // 收敛，免得永远拖个尾巴
     const camDropY = this.camDropY;
     const offX = (canvas.width - VW * zscale) / 2 + camFx.shakeX * baseScale;
-    const offY = (canvas.height - WORLD_H * zscale) / 2 + camFx.shakeY * baseScale - camDropY * zscale;
+    // 信箱化的是**可见带** [crop, WORLD_H] 而非整个世界：裁天空等于把世界贴底对齐。
+    // crop 为 0 时 visH === WORLD_H，这一式退化回原来的居中，桌面观感分毫不动。
+    const offY = (canvas.height - visH * zscale) / 2 - crop * zscale
+      + camFx.shakeY * baseScale - camDropY * zscale;
     ctx.setTransform(zscale, 0, 0, zscale, offX, offY);
 
     const theme = themeAt(game.score.distanceM);
     const cam = game.cameraX + camFx.extraCamX; // 相机前瞻
-    drawBackground(ctx, cam, theme, VW, WORLD_H, assets, game.state === 'title', t, game.score.distanceM);
+    drawBackground(ctx, cam, theme, VW, WORLD_H, assets, game.state === 'title', t, game.score.distanceM, crop);
 
     // 前景装饰景物层（仅游玩时，标题用美术图）
     if (game.state !== 'title') drawProps(ctx, assets, game.score.distanceM, cam, theme, VW, WORLD_H);
@@ -168,8 +183,10 @@ export class Renderer {
     if (game.state !== 'title') {
       const sunX = VW * 0.82;
       // 日轮随旅程西沉：拂晓高悬 → 终章日暮，扣合「与日逐走，日终不可及」
+      // 定位在**可见带**内而非整个世界：裁掉天空后仍按 WORLD_H 摆，日轮会被切掉
+      // 上沿——而那是这一作要人一直望着的东西，不能让它掉到画外。
       const prog = Math.max(0, Math.min(1, game.score.distanceM / 2000));
-      const sunY = WORLD_H * (0.22 + 0.2 * prog) + Math.sin(t * 0.3) * 6;
+      const sunY = crop + visH * (0.22 + 0.2 * prog) + Math.sin(t * 0.3) * 6;
       const core = 34;
       const halo = 150 + 20 * Math.sin(t * 0.7);
       ctx.save();
@@ -384,7 +401,7 @@ export class Renderer {
       if (!e.alive) continue;
       const x = e.x - cam;
       if (x < -60 || x > VW + 60) continue;
-      if (e.kind === 'walker') {
+      if (isGroundKind(e.kind)) {
         const sprite = assets.enemyWalker;
         if (sprite) {
           const drawH = e.h * 1.4;
@@ -408,6 +425,21 @@ export class Renderer {
           ctx.fillStyle = rgb([255, 170, 80]);
           const eyeX = e.dir === 1 ? x + e.w - 7 : x + 4;
           ctx.fillRect(eyeX, e.y + 5, 3, 3);
+        }
+        // 石盾：必须明显宽于身体、且是高对比实心块——横持手机上整只怪只有
+        // 21×17 CSS px，细笔画认不出来，读不出盾就等于这只怪没有解法提示。
+        // 画的条件与判定同一个来源：有正面装甲才画盾。写死 kind 的话，
+        // 哪天 armorFrontal 改了规则，画面与判定就各说各话。
+        if (armorFrontal(e)) {
+          const sw = 7, sx = e.dir === 1 ? x + e.w - 1 : x - sw + 1;
+          const g = ctx.createLinearGradient(sx, e.y, sx + sw, e.y);
+          g.addColorStop(0, 'rgba(150,140,125,1)');
+          g.addColorStop(1, 'rgba(70,64,56,1)');
+          ctx.fillStyle = g;
+          ctx.fillRect(sx, e.y - 4, sw, e.h + 6);
+          ctx.strokeStyle = 'rgba(255,214,150,0.55)';
+          ctx.lineWidth = 1;
+          ctx.strokeRect(sx + 0.5, e.y - 3.5, sw - 1, e.h + 5);
         }
       } else {
         const cx = x + e.w / 2, cy = e.y + e.h / 2;
@@ -442,6 +474,22 @@ export class Renderer {
           ctx.fillRect(cx + 2, cy - 1, 2, 2);
         }
       }
+    }
+
+    // 飞尸：翻滚的剪影，越接近消散越淡
+    for (const c of game.corpses.list) {
+      const x = c.x - cam;
+      if (x < -60 || x > VW + 60) continue;
+      const k = c.t / CORPSE_LIFE;
+      ctx.save();
+      ctx.globalAlpha = Math.max(0, k);
+      ctx.translate(x + c.w / 2, c.y + c.h / 2);
+      ctx.rotate((1 - k) * 6 * Math.sign(c.vx || 1));
+      ctx.fillStyle = '#06060a';
+      ctx.beginPath();
+      ctx.roundRect(-c.w / 2, -c.h / 2, c.w, c.h, 5);
+      ctx.fill();
+      ctx.restore();
     }
 
     // 玩家残影（冲刺/跨步时高亮拖尾，附加发光；跨步更盛）
@@ -740,9 +788,11 @@ export class Renderer {
       const arts = assets.endingArts;
       const img = arts.length ? arts[game.endingSeed % arts.length] : null;
       if (img) {
-        const sc = Math.max(VW / img.width, WORLD_H / img.height);
+        // 覆盖可见带，而非整个世界：按 WORLD_H 铺时手机上会有 128 单位画在画外，
+        // 结局图的构图中心（弃杖化邓林那株桃）就偏到屏幕下半去了
+        const sc = Math.max(VW / img.width, visH / img.height);
         const w = img.width * sc, h = img.height * sc;
-        ctx.drawImage(img, (VW - w) / 2, (WORLD_H - h) / 2, w, h);
+        ctx.drawImage(img, (VW - w) / 2, crop + (visH - h) / 2, w, h);
         // 0.42 的压暗是按暗调结局图定的；邓林那几张是明亮的桃花逆光，死因、
         // 「弃其杖，化为邓林」与分享提示（皆 0.6 上下的暖白）压在花瓣上几乎读不出。
         // 结算页首先得让人看清自己走了多远，氛围让位于可读。

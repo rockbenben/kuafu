@@ -155,7 +155,7 @@ function drawSkyStars(ctx: CanvasRenderingContext2D, theme: Theme, w: number, h:
 
 export function drawBackground(
   ctx: CanvasRenderingContext2D, cameraX: number, theme: Theme, w: number, h: number,
-  assets?: Assets, isTitle?: boolean, time = 0, distanceM = 0,
+  assets?: Assets, isTitle?: boolean, time = 0, distanceM = 0, crop = 0,
 ) {
   const sky = ctx.createLinearGradient(0, 0, 0, h);
   sky.addColorStop(0, rgb(theme.skyTop));
@@ -165,13 +165,17 @@ export function drawBackground(
 
   if (!isTitle) drawSkyStars(ctx, theme, w, h, cameraX, time); // 夜空星子（在远景剪影之后）
 
+  // 天地远景按整个世界铺（地平线是世界量，裁天空不该动它）；标题美术图不同——
+  // 它是一整幅构好的画，得覆盖**可见带** [crop, h]，否则手机上巨人抬起的那只手
+  // （画面的重心）正好落在被裁掉的那一截里。
   if (isTitle && assets?.titleArt) {
     const img = assets.titleArt;
-    const scale = Math.max(w / img.width, h / img.height);
+    const visH = h - crop;
+    const scale = Math.max(w / img.width, visH / img.height);
     const dw = img.width * scale, dh = img.height * scale;
     ctx.save();
     ctx.globalAlpha = 0.45;
-    ctx.drawImage(img, (w - dw) / 2, (h - dh) / 2, dw, dh);
+    ctx.drawImage(img, (w - dw) / 2, crop + (visH - dh) / 2, dw, dh);
     ctx.restore();
   }
 
