@@ -52,8 +52,14 @@ describe('validateSubmission', () => {
     const b = { name: 'hunter', score: 8800, distanceM: 1500, durationMs: 300000, board: 'endless' };
     expect(validateSubmission({ ...b, sig: signPayload(b) })).toBeNull();
   });
-  it('拒绝：远超合理上限的伪造分（dist×7）', () => {
-    const b = { name: 'cheat', score: 10500, distanceM: 1500, durationMs: 300000, board: 'endless' };
+  // 这一档曾被判成作弊。把怪杀干净、连击拉满本就能打到约 12 分/米（推导见
+  // validate.ts 的 scoreCeiling），旧上限 6 分/米把这种人整个挡在榜外。
+  it('接受：把怪杀干净、连击拉满的成绩（score ≈ dist×12）', () => {
+    const b = { name: 'slayer', score: 18000, distanceM: 1500, durationMs: 300000, board: 'endless' };
+    expect(validateSubmission({ ...b, sig: signPayload(b) })).toBeNull();
+  });
+  it('拒绝：远超合理上限的伪造分（dist×20）', () => {
+    const b = { name: 'cheat', score: 30000, distanceM: 1500, durationMs: 300000, board: 'endless' };
     expect(validateSubmission({ ...b, sig: signPayload(b) })).not.toBeNull();
   });
   it('拒绝：非法榜单键', () => {
