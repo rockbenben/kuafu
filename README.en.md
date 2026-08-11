@@ -16,13 +16,13 @@
 
 Become Kuafu on a silhouette wasteland, chasing a sun you can never catch: gather sunlight to raise the multiplier, sip sweet springs to dash again, shatter drought-fiends and sunbirds, cross a whole screen in one step once the power gauge fills — and get as far as you can before the long night behind you swallows you.
 
-Unlike a generic endless runner, the world walks the whole record: setting out at dawn, drinking the Yellow River and the Wei, dying of thirst on the road, the staff cast down that became the Peach Forest. Crossing the final chapter is not the end — the moonlit Peach Forest and the starfields of the Great Wilderness are seen only by those who run far enough.
+Unlike a generic endless runner, the world walks the whole record: setting out at dawn, drinking the Yellow River and the Wei, dying of thirst on the road, the staff cast down that became the Peach Forest. Crossing the final chapter is not the end — the moonlit Peach Forest and the starfields of the Great Wilderness are seen only by those who run far enough. **The tale carries across runs** — twelve fragments do not fit in one life, so dying does not send you back to the beginning; the next run picks up where the last one left off.
 
 ## What it runs on
 
 | Area | Support |
 | --- | --- |
-| **Devices** | Desktop (keyboard) · phone / tablet (on-screen touch buttons). Held upright, it prompts you to rotate to landscape for the full view |
+| **Devices** | Desktop (keyboard) · phone / tablet (on-screen touch buttons). The first touch takes it fullscreen and locks it to landscape; held upright, it prompts you to rotate first (except on iPhone, where Safari does not allow fullscreen for web pages) |
 | **Browsers** | Build target ES2022 — Chrome / Edge 94+, Safari 15.4+, Firefox 93+ |
 | **Install** | None. Open the page and play — no download, no account, no sign-up |
 | **Network** | The game runs entirely in your browser; it only goes online when you submit a score (see below) |
@@ -35,13 +35,19 @@ Unlike a generic endless runner, the world walks the whole record: setting out a
 
 ## How it plays
 
-**Core loop**: run forward → clear cracked earth, chasms and spikes → gather **sunlight** to raise your multiplier and store spirit, sip **sweet springs** to refresh your dash → dash to shatter drought-fiends and drive off sunbirds → at full spirit unleash **Kuafu's Stride** to cross a whole screen → get further before the **long night** catches you. Being caught ends the run.
+**Core loop**: run forward → clear cracked earth, chasms and spikes → gather **sunlight** to raise your multiplier and store spirit, sip **sweet springs** to refresh your dash → dash to shatter drought-fiends and drive off sunbirds, and read a shieldbearer's facing to take its back or land on it from above → chain kills without a break to build your combo → at full spirit unleash **Kuafu's Stride** to cross a whole screen → get further before the **long night** catches you. Being caught ends the run.
 
 **Scoring**: `glory = distance × multiplier`. Each mote of sunlight adds +0.1 to the multiplier (capped at ×3); kills and style earn bonuses on top. The further you run and the higher your multiplier, the greater your glory.
 
 **Spirit and the ultimate — Kuafu's Stride**: sunlight and kills fill the spirit gauge; at full, press `K` to stride — rise into the air, then sweep across an entire screen, shattering everything in the way, with 3 seconds of invulnerability on landing. It is the key to escaping trouble and to pushing your score.
 
-**Enemies**: `drought-fiends` (demons of drought) and `sunbirds` (the crows of the ten suns). Hit them while dashing or striding to destroy them for points; touch them bare-handed and you die.
+**Enemies**: `drought-fiends` (demons of drought) and `sunbirds` (the crows of the ten suns). Hit them while dashing or striding, or come down on one from above, to destroy them for points; run into one on the flat and you die.
+
+**Shieldbearers**: a drought-fiend carrying a slab of stone that stops a dash cold. Hitting its face will not kill you — you are thrown back, you lose your speed, and your dash locks for a moment, which is all the long night needs to gain on you. It only ever patrols, never chases, and the shield sits on the side it walks toward, so **watching which way it is walking** is the whole read: dash its back for a `backstab` worth double, or simply leap and land on it, which always works, as does the Stride.
+
+**Ranks**: once you are far enough out, the fiends stop standing around alone — three or four of them wait in a pack, so you have to solve the whole group in one pass instead of picking them off. Shieldbearers and ranks both take some distance to appear; the first time a new kind shows up, a line tells you how it is fought.
+
+**Combos and knockback**: kills within four seconds of each other stack a combo, and the bonus climbs with it (the hit-stop and screen shake grow too). Anything killed by a dash or a Stride is thrown backward, and the flying body kills whatever it hits — one dash into a pack can chain through several. A shield stops a flying body the same way it stops you, though: hit its face and the corpse breaks against it, so you have to come from behind. Stomping crushes downward instead, so it throws nothing.
 
 **See how you died**: death no longer cuts away mid-frame. The world stops, the camera pushes in, and your runner goes down where they fell; drop into a chasm and the camera follows you down so you can see which pit took you. The cause surfaces first, then the picture sinks into the long night and the ending art and your score rise out of the black. Press any key to skip ahead.
 
