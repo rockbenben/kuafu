@@ -40,6 +40,15 @@ export class Audio2 {
     return this.muted;
   }
 
+  /**
+   * 起音时长。增益从 0 瞬跳到峰值会在波形头上切出一个阶跃，耳朵听到的是一记
+   * 爆音（click）——音量越大、频率越低越明显，死亡音那一记「噪音特别大」有一半
+   * 来自这里。6ms 短到听不出延迟，却足以把阶跃磨圆。
+   *
+   * 注意不能用 0 起步：exponentialRamp 碰不得零，得从一个极小值爬上去。
+   */
+  private static readonly ATTACK = 0.006;
+
   /** freq 起止频率滑音，type 波形，dur 秒，vol 峰值音量 */
   private blip(f0: number, f1: number, dur: number, type: OscillatorType, vol = 0.15) {
     if (this.muted || !this.ctx || this.ctx.state !== 'running') return;
@@ -49,7 +58,9 @@ export class Audio2 {
     osc.type = type;
     osc.frequency.setValueAtTime(f0, t);
     osc.frequency.exponentialRampToValueAtTime(Math.max(1, f1), t + dur);
-    gain.gain.setValueAtTime(vol, t);
+    const atk = Math.min(Audio2.ATTACK, dur * 0.4);
+    gain.gain.setValueAtTime(0.0001, t);
+    gain.gain.exponentialRampToValueAtTime(vol, t + atk);
     gain.gain.exponentialRampToValueAtTime(0.001, t + dur);
     const out = this.out();
     if (!out) return;
@@ -62,7 +73,15 @@ export class Audio2 {
   dash() { this.blip(700, 200, 0.18, 'sawtooth', 0.1); }
   mote() { this.blip(900, 1400, 0.1, 'sine', 0.12); }
   crystal() { this.blip(500, 1000, 0.2, 'triangle', 0.12); }
-  death() { this.blip(220, 40, 0.4, 'sawtooth', 0.15); }
+  /**
+   * 死亡的一记闷响。
+   *
+   * 原来是 sawtooth 220→40Hz @0.15：锯齿含全部谐波，又一路扫到 40Hz——手机喇叭
+   * 推不出那么低，只会把它还成失真，听感就是「噪音特别大」。改三角波（谐波少得
+   * 多）、止步于 55Hz、音量压到 0.10。冲击力本来就有震屏 0.9 与顿帧 0.09 扛着，
+   * 不必靠音量硬撑；后面还有 knell() 那记落幕音收尾。
+   */
+  death() { this.blip(200, 55, 0.45, 'triangle', 0.10); }
   kill() { this.blip(600, 150, 0.15, 'square', 0.12); }
   stride() { this.blip(180, 900, 0.35, 'sawtooth', 0.16); this.blip(90, 300, 0.4, 'triangle', 0.12); }
   charged() { this.blip(700, 1300, 0.18, 'sine', 0.1); } // 神力充满提示
