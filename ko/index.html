@@ -27,6 +27,14 @@
   <meta name="twitter:card" content="summary_large_image" />
   <meta name="twitter:image" content="https://kuafu.newzone.top/og/ko.jpg" />
   <style>
+    /* 安全区暴露成自定义属性，好让 canvas 里的 HUD 也读得到——env() 只有 CSS 能求值，
+       而 HUD 是画出来的，不吃 CSS。main.ts 在画布尺寸变化时读这四个值。 */
+    :root {
+      --sa-l: env(safe-area-inset-left, 0px);
+      --sa-r: env(safe-area-inset-right, 0px);
+      --sa-t: env(safe-area-inset-top, 0px);
+      --sa-b: env(safe-area-inset-bottom, 0px);
+    }
     html, body {
       margin: 0; height: 100%; background: #0a0a12; overflow: hidden;
       /* 移动端硬化：禁选中/长按菜单/点击高亮/下拉刷新回弹 */
@@ -138,7 +146,23 @@
     /* 退·辅键尺寸：按 vh 缩放，但不得小于 44px——横持小屏（375px 高）时
        10vh 只有 37.5px，低于可点最小尺寸，拇指常按空。进键的左偏移跟着它走，
        否则退键一变大就与进键叠在一起。 */
-    #tc { position: fixed; inset: 0; z-index: 9; display: none; pointer-events: none; --back: max(10vh, 44px); }
+    /* 尺寸集中在这里，偏移量一律由它们算出——别再手写 18.5vh 那种推导值：
+       改一颗键的大小就得重算所有邻居，漏一个就叠在一起。
+       clamp 的下限是给横持手机的：纯 vh 在 390px 高的屏上把「冲」压到 49px、
+       「退」压到 44px，正好卡在可点下限上，拇指常按空；上限是给平板的，
+       不然 17vh 在 768px 高的屏上会涨到 131px，一颗键占掉六分之一屏。 */
+    #tc {
+      position: fixed; inset: 0; z-index: 9; display: none; pointer-events: none;
+      --jump: clamp(80px, 17vh, 128px);   /* 跃·右手主键 */
+      --fwd:  clamp(78px, 16.5vh, 124px); /* 进·左手主键，拇指常驻 */
+      --ult:  clamp(66px, 14vh, 108px);   /* 跨·大招，仅满神力时现 */
+      --dash: clamp(62px, 12.5vh, 100px); /* 冲 */
+      --back: clamp(52px, 10vh, 84px);    /* 退·辅键 */
+      --gap: 10px;
+      --edgeL: calc(3.5vw + env(safe-area-inset-left, 0px));
+      --edgeR: calc(3.5vw + env(safe-area-inset-right, 0px));
+      --floor: env(safe-area-inset-bottom, 0px);
+    }
     #tc.on { display: block; }
     #tc button {
       position: absolute; pointer-events: auto; margin: 0; padding: 0;
@@ -169,12 +193,12 @@
       text-shadow: 0 0 12px rgba(255, 214, 150, 0.7);
     }
     /* 逐日恒向前：进 为主（大碟，石心含一点落日之火，拇指常驻）；退 为辅（小碟，偶尔回身） */
-    #tc-right { width: 16.5vh; height: 16.5vh; font-size: 6.4vh;
-      left: calc(3.5vw + env(safe-area-inset-left, 0px) + var(--back) + 8px);
-      bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px)); }
-    #tc-left { width: var(--back); height: var(--back); font-size: max(4vh, 17px);
-      left: calc(3.5vw + env(safe-area-inset-left, 0px));
-      bottom: calc(5.5vh + env(safe-area-inset-bottom, 0px)); }
+    #tc-right { width: var(--fwd); height: var(--fwd); font-size: calc(var(--fwd) * 0.4);
+      left: calc(var(--edgeL) + var(--back) + var(--gap));
+      bottom: calc(4.5vh + var(--floor)); }
+    #tc-left { width: var(--back); height: var(--back); font-size: calc(var(--back) * 0.4);
+      left: var(--edgeL);
+      bottom: calc(5.5vh + var(--floor)); }
     /* 进·主控：靠"更大 + 一点含蓄暖核"作主，而非发光抢眼（游玩时长驻眼角，须克制） */
     #tc button#tc-right {
       background: radial-gradient(circle at 50% 54%, rgba(255, 150, 74, 0.22), rgba(48, 29, 17, 0.46) 46%, rgba(9, 5, 3, 0.54) 76%);
@@ -191,13 +215,16 @@
       text-shadow: 0 0 12px rgba(255, 214, 150, 0.7);
     }
     /* 右手·主动作：跃(大) 主跳、冲 疾冲——同为玄石碟 */
-    #tc-jump { width: 17vh; height: 17vh; font-size: 7vh;
-      right: calc(3.5vw + env(safe-area-inset-right, 0px)); bottom: calc(4.5vh + env(safe-area-inset-bottom, 0px)); }
-    #tc-dash { width: 12.5vh; height: 12.5vh; font-size: 5.4vh;
-      right: calc(3.5vw + env(safe-area-inset-right, 0px) + 18.5vh); bottom: calc(9.5vh + env(safe-area-inset-bottom, 0px)); }
+    #tc-jump { width: var(--jump); height: var(--jump); font-size: calc(var(--jump) * 0.4);
+      right: var(--edgeR); bottom: calc(4.5vh + var(--floor)); }
+    #tc-dash { width: var(--dash); height: var(--dash); font-size: calc(var(--dash) * 0.4);
+      right: calc(var(--edgeR) + var(--jump) + var(--gap));
+      bottom: calc(9.5vh + var(--floor)); }
     /* 大招·跨步：神力满时自天际升起如小日轮、脉动待发（以脉动别于"进"的常亮暖核） */
-    #tc button#tc-ult { width: 14vh; height: 14vh; font-size: 5vh; display: none;
-      right: calc(4.5vw + env(safe-area-inset-right, 0px)); bottom: calc(24vh + env(safe-area-inset-bottom, 0px));
+    #tc button#tc-ult { width: var(--ult); height: var(--ult); font-size: calc(var(--ult) * 0.4); display: none;
+      right: var(--edgeR);
+      /* 叠在「跃」正上方：跟着 --jump 算，改跃的大小时不必回来重算这一行 */
+      bottom: calc(4.5vh + var(--floor) + var(--jump) + var(--gap));
       border-color: rgba(255, 198, 120, 0.82); color: rgba(255, 232, 186, 0.96);
       background: radial-gradient(circle at 50% 42%, rgba(255, 176, 92, 0.34), rgba(40, 20, 10, 0.46)); }
     #tc button#tc-ult:active {
@@ -212,7 +239,7 @@
       #tc button#tc-ult.ready { animation: none; box-shadow: 0 0 18px 5px rgba(255, 186, 104, 0.4); }
     }
   </style>
-  <script type="module" crossorigin src="../assets/index-BGa3Hlgb.js"></script>
+  <script type="module" crossorigin src="../assets/index-BoBbbs_s.js"></script>
   <meta property="og:locale" content="ko_KR" />
   <meta name="twitter:title" content="빛을 좇다 · 과보축일" />
   <meta name="twitter:description" content="실루엣 신화 러너: 결코 닿을 수 없는 해를 좇다." />
