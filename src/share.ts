@@ -1,4 +1,4 @@
-import { t, rankKeyFor, fontKai, type StringKey } from './render/strings';
+import { t, punct, MID, rankKeyFor, fontKai, type StringKey } from './render/strings';
 
 /** 死因 → 文案键。与 ui.ts 的 DEATH_KEY 同源，分享卡也该说清是怎么终结的。 */
 const DEATH_KEY: Record<string, StringKey> = {
@@ -22,7 +22,10 @@ export async function shareScore(
   const rank = t(rankKeyFor(score));
   // 死因是这一局的结局，卡片与文案都该带上——只报分数，故事就少了收尾那一句
   const cause = deathCause ? t(DEATH_KEY[deathCause] ?? 'death.darkness') : '';
-  const text = `${t('share.title')}｜${t('title.rank')}「${rank}」· ${t('hud.score')} ${score}（${t('hud.dist2')} ${distanceM} ${t('hud.dist')}）${cause ? `· ${cause}` : ''}｜${t('share.tagline')}`;
+  const p = punct();
+  const text = `${t('share.title')}${p.pipe}${t('title.rank')}${p.lq}${rank}${p.rq} · `
+    + `${t('hud.score')} ${score}${p.pl}${t('hud.dist2')} ${distanceM} ${t('hud.dist')}${p.pr}`
+    + `${cause ? ` · ${cause}` : ''}${p.pipe}${t('share.tagline')}`;
 
   // 生成成绩卡（结局图 + 分数）
   let file: File | null = null;
@@ -59,7 +62,7 @@ export async function shareScore(
     }
     x.font = `36px ${fontKai()}`;
     x.fillStyle = 'rgba(255,245,230,0.92)';
-    x.fillText(`${t('hud.dist2')} ${distanceM} ${t('hud.dist')}　·　${t('death.best')} ${best}`, W / 2, 400);
+    x.fillText(`${t('hud.dist2')} ${distanceM} ${t('hud.dist')}${MID}${t('death.best')} ${best}`, W / 2, 400);
     x.font = `32px ${fontKai()}`;
     x.fillStyle = 'rgba(255,220,150,0.95)';
     x.fillText(t('share.tagline'), W / 2, 470);

@@ -2,7 +2,7 @@
 // 避免 ui/renderer/share 三个消费方改 import 路径。
 
 export {
-  t, tf, tTouch, getLocale, setLocale, resolveLocale, pickLocale, fontKai, fontHud, fontKaiFor,
+  t, tf, tTouch, punct, MID, getLocale, setLocale, resolveLocale, pickLocale, fontKai, fontHud, fontKaiFor,
   LOCALES, MESSAGES,
 } from '../i18n';
 export type { Locale, LocaleMeta, LocaleSources, StringKey, Messages } from '../i18n';

@@ -56,6 +56,13 @@ const BUDGET: { key: StringKey; px: number; max: number }[] = [
   { key: 'death.offline', px: 13, max: VW_MIN - 80 },
   { key: 'death.pending', px: 13, max: VW_MIN - 80 },
   { key: 'share.tagline', px: 32, max: 1100 }, // 分享卡 1200 宽
+  // 竖持提示的三句：这一屏只在窄机上出现，而 320 宽是现实存在的机型。
+  // 字号 = Math.round(基准 × s)，s = min(w,h)/390 → 320 宽时 26→21 / 18→15 / 14→12；
+  // 可用宽 = w - 48·s ≈ 272。三句现在都走 drawFit 了，但**预算必须仍然在测试里**——
+  // 靠缩字过关不是过关，那是把出血藏进 0.72× 的下限里。
+  { key: 'rotate.hint', px: 21, max: 272 },
+  { key: 'rotate.sub', px: 15, max: 272 },
+  { key: 'rotate.tap', px: 12, max: 272 },
 ];
 
 // 旁白正文 28px / 出处 15px，均居中；maxWidth 分别为 vw-80 与 vw-160

@@ -10,6 +10,18 @@ import { DEFAULT_LOCALE, FALLBACK_LOCALE, LOCALES, type Locale, type Messages, t
 
 export * from './keys';
 
+/**
+ * 拉丁语种里**不许**出现全角标点——但允许一个例外：引用某个按钮的字形。
+ *
+ * `avatar.tip` 在 en 里写的是 `Tap ＋ to run as your own`，那个 ＋ 与「+」那颗钮
+ * 画的是同一个字形（见 index.html 的 .avopt 注释），是全角还是半角由**那颗钮**决定，
+ * 不由语种决定。把它改成半角，提示行与按钮就差一圈字宽，读者认不出说的是谁。
+ * 守卫测试按这份名单放行；名单之外的全角字符仍然判红。
+ */
+export const FULLWIDTH_EXEMPT: Partial<Record<Locale, Partial<Record<StringKey, string>>>> = {
+  en: { 'avatar.tip': '＋' },
+};
+
 export const MESSAGES: Record<Locale, Messages> = {
   'zh-Hans': zhHans,
   'zh-Hant': zhHant,
@@ -36,6 +48,27 @@ export function t(key: StringKey): string {
 export function tf(key: StringKey, vars: Record<string, string>): string {
   return t(key).replace(/\{(\w+)\}/g, (m, name: string) => vars[name] ?? m);
 }
+
+/**
+ * 标点族按语种选，而不是把中文标点硬拼进每一种语言。
+ *
+ * 屏上这些串是代码拼出来的（称号、分享文本、模式行），原先一律写死全角 ｜「」（）　·　，
+ * 于是英文成品里出现 `Chasing Light｜Title「Sun-Chaser」· …（…）` 这种四不像。
+ * 规则：引号「」保留给 CJK 三语（它是这一作称号的视觉记号），括号与竖线在 en/ko 退到半角；
+ * **中点分隔一律「半角空格 + · + 半角空格」**——全角空格在 18px 那一行里是一个 18px 的洞。
+ */
+export function punct(): { lq: string; rq: string; pl: string; pr: string; pipe: string } {
+  const cjkQuote = current !== 'en';
+  const wide = current === 'zh-Hans' || current === 'zh-Hant' || current === 'ja';
+  return {
+    lq: cjkQuote ? '「' : '"', rq: cjkQuote ? '」' : '"',
+    pl: wide ? '（' : '(', pr: wide ? '）' : ')',
+    pipe: wide ? '｜' : '|',
+  };
+}
+
+/** 屏上中点分隔：一律半角空格两侧，不留全角空格。 */
+export const MID = ' · ';
 
 /** 触屏变体优先：粗指针设备取 `${key}.touch`（改说按钮），无变体则回退键位文案。 */
 export function tTouch(key: string, coarse: boolean): string {

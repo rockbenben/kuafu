@@ -272,9 +272,32 @@ describe('语言菜单的标题与关闭提示', () => {
   });
 });
 
+describe('触屏文案不提键盘键位（全量泛化）', () => {
+  /**
+   * 此前只有 `lang.close.touch` 一条被正则守着，其余 20+ 条 `.touch` 与 `title.ctrl3`
+   * 是盲区：谁往 `help.*.touch` 里塞个 Shift / K 都不会红。
+   *
+   * 判据按「独立成词的键名」算，且只认大写字母——小写 `a` 是英文冠词
+   * （`tap ★ to stride a whole screen`），把它当 A 键是假阳性，踩过一次。
+   */
+  const KEYWORD = /(?:Shift|Ctrl|Alt|Space|Enter|Tab|Esc|Arrows?|[KHTMRFJWSADG])|方向键|方向キー|空格|スペース|↑|→|←|↓/;
+  for (const { id } of LOCALES) {
+    it(`${id} 的 .touch 与触屏操作行都不含键名`, () => {
+      const table = MESSAGES[id];
+      const bad: string[] = [];
+      for (const key of Object.keys(table) as (keyof typeof table)[]) {
+        if (!String(key).endsWith('.touch') && key !== 'title.ctrl3') continue;
+        const v = String(table[key]);
+        if (KEYWORD.test(v)) bad.push(`${key}「${v}」`);
+      }
+      expect(bad, bad.join('; ')).toEqual([]);
+    });
+  }
+});
+
 describe('被牌子取代的旧键', () => {
   it('已从所有语种移除，不留死文案', () => {
-    const dead = ['title.lang', 'title.lang.touch', 'help.open', 'help.open.touch'];
+    const dead = ['title.lang', 'title.lang.touch', 'help.open', 'help.open.touch', 'hud.full'];
     const left: string[] = [];
     for (const { id } of LOCALES) {
       for (const k of dead) {
