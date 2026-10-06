@@ -51,8 +51,11 @@
       position: fixed; left: 50%; bottom: calc(12px + env(safe-area-inset-bottom, 0px)); transform: translateX(-50%);
       display: none; z-index: 10;
       font: 13px "STKaiti", "KaiTi", "楷体", "BiauKai", serif;
-      color: rgba(240, 228, 210, 0.5); text-decoration: none;
+      color: rgba(240, 228, 210, 0.62); text-decoration: none;
       letter-spacing: 0.06em; transition: color 0.2s;
+      /* 命中区：纯文字只有 112×16 CSS px，低于 WCAG 2.2 的 24×24 目标下限。
+         内边距把它撑到 ~30 高而不改视觉位置（居中靠 translateX，padding 只吃两侧）。 */
+      padding: 0.55em 1.1em;
     }
     #gh:hover { color: rgba(255, 225, 160, 0.95); }
     /* 换形象：主功能，做成标题下方一枚醒目的胶囊键（带当前形象的圆形预览）。
@@ -70,6 +73,8 @@
     /* 结算页：底边对齐锚点、向上生长。那一屏底下没有余量——居中对齐时展开态
        （一排圆 + 提示行）会直接溢出屏幕底部。 */
     #avbar.anchor-bottom { transform: translate(-50%, -100%); }
+    /* 短屏结算页改贴左下角（left/top 由 placeAvBar 给），中间那条带留给两行出口 */
+    #avbar.at-corner { transform: translate(0, -100%); }
     #avrow { display: flex; gap: 0.93em; align-items: center; }
     /* 「还能传自己的图」只在展开时说——收起态挂着它就成了常驻噪音 */
     #avtip { font-size: 0.8em; color: rgba(240, 228, 210, 0.62); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
@@ -129,6 +134,14 @@
       border-color: rgba(255, 225, 160, 0.95); transform: scale(1.08); outline: none;
       box-shadow: 0 0 16px rgba(255, 190, 110, 0.5);
     }
+    /* 读图失败：就地红一下那颗「＋」。反馈落在用户刚点的东西上，
+       而不是把换形象条的名字换成一句报错。 */
+    .avopt.fail {
+      border-color: rgba(255, 116, 92, 0.95);
+      box-shadow: 0 0 16px rgba(255, 90, 60, 0.45);
+      transform: none;
+    }
+    .avopt.fail > span { color: #ff9a80; }
     /* 当前选中：亮一圈，否则一排圆里认不出自己现在是谁 */
     .avopt.cur { border-color: rgba(255, 232, 180, 1); box-shadow: 0 0 18px rgba(255, 196, 120, 0.72); }
     /* 「+」上传：暗底，与预设区分开——它不是第七个形象 */
@@ -239,7 +252,7 @@
       #tc button#tc-ult.ready { animation: none; box-shadow: 0 0 18px 5px rgba(255, 186, 104, 0.4); }
     }
   </style>
-  <script type="module" crossorigin src="../assets/index-BoBbbs_s.js"></script>
+  <script type="module" crossorigin src="../assets/index-DNXhpwQm.js"></script>
   <meta property="og:locale" content="en_US" />
   <meta name="twitter:title" content="Chasing Light · Kuafu and the Sun" />
   <meta name="twitter:description" content="A silhouette-art mythic runner: race the sun that can never be caught." />
@@ -255,7 +268,8 @@
 <body>
   <canvas id="game"></canvas>
   <!-- 源码链接：如仓库名不同，改此 href 即可 -->
-  <a id="gh" href="https://github.com/rockbenben/kuafu" target="_blank" rel="noopener noreferrer">源码 · GitHub ↗</a>
+  <!-- 文字由 applyChromeLocale() 按语种填；此处只留任何语种都认的 GitHub ↗ -->
+  <a id="gh" href="https://github.com/rockbenben/kuafu" target="_blank" rel="noopener noreferrer">GitHub ↗</a>
   <!-- 换形象：文字由 applyAvatarLocale() 按当前语种填入，此处留空不写死任何一种语言 -->
   <div id="avbar">
     <div id="avrow">
