@@ -118,15 +118,48 @@ export class Renderer {
   private lastPlayerX: number | null = null;
   private camDropY = 0;        // 坠亡回放的镜头下带量（平滑推进，见 render）
   private lastRenderT = 0;     // 上一帧时刻，供 render 内部求帧间隔
+  /** 减弱动效：装饰时钟是否停走。 */
+  private ambientFrozen = false;
+  /**
+   * 装饰动画读到的绝对时刻；null = 下一帧现取。
+   *
+   * **必须惰性取，不能在 setAmbientFrozen 里当场记**：当场记记的是墙钟，
+   * 取景夹具每次实拍都是新页面、墙钟各不相同，两张"冻住"的图于是相位不同，
+   * 配对帧照样差 0.56%——把仪器的抖动读成了界面的残留动画。惰性取的第一帧
+   * 就是本次取景钉住的那个 t，跨页面、跨进程都复现。
+   */
+  private ambientAt: number | null = null;
+  /** 精灵顶沿高出物理盒上沿的像素数，每帧随素材更新；见 `spriteOverhang`。 */
+  private spriteOverhangPx = 0;
   private vw = VIEW_W;      // 当前有效视口宽度（按窗口比例自适应，铺满宽屏）
 
   constructor(private canvas: HTMLCanvasElement, private assets: Assets = EMPTY_ASSETS) {
     this.ctx = canvas.getContext('2d')!;
   }
 
+  /**
+   * 冻结/放行世界层的装饰动画。
+   *
+   * `prefers-reduced-motion` 是用户对系统**明说过的话**，而上一轮只让文字听了话：
+   * 实拍配对帧仍变 10.4%（标题），光柱在转、日轮在胀。
+   * 冻的是绝对时刻而不是 0——跳回「光柱归零、日轮最小」那一相等于换了张脸。
+   * 玩法相关的动不受影响：跑步循环按**位移**取帧，地形滚动来自相机，
+   * 死亡回放的镜头下带走的下面是真实帧间隔。
+   */
+  setAmbientFrozen(frozen: boolean) {
+    this.ambientFrozen = frozen;
+    if (!frozen) this.ambientAt = null;
+  }
+
+  /** 精灵画出的顶沿高出物理盒上沿多少（杖与发的过冲）。浮动反馈据此决定出生点。 */
+  get spriteOverhang(): number { return this.spriteOverhangPx; }
+
   render(game: Game, particles: Particles, camFx: CameraFX = NO_FX, popups?: Popups) {
     const { ctx, canvas, assets } = this;
-    const t = performance.now() / 1000;
+    const tReal = performance.now() / 1000;
+    if (this.ambientFrozen && this.ambientAt === null) this.ambientAt = tReal;
+    // 装饰动画读 t，结构性计时读 tReal：两者混成一个名字，冻动效就会顺手冻掉运镜
+    const t = this.ambientAt ?? tReal;
 
     // 限制像素密度上限：高 DPR 手机若按 3x 渲染整屏世界会吃满 GPU 掉帧，封顶 2x
     const dpr = Math.min(devicePixelRatio || 1, 2);
@@ -158,8 +191,10 @@ export class Renderer {
     //
     // 必须平滑地推下去：直接赋值等于「啪」地切了个机位，读作穿帮而不是运镜。
     // 这里用帧间隔自行插值——render 拿不到 dt，就地从 performance.now 求。
-    const dtR = Math.min(0.05, Math.max(0, t - this.lastRenderT));
-    this.lastRenderT = t;
+    // 必须用**真实**时刻：减弱动效冻住的是装饰时钟，不是运镜，冻在一起就成了
+    // 「坠崖回放镜头永远推不下去」。
+    const dtR = Math.min(0.05, Math.max(0, tReal - this.lastRenderT));
+    this.lastRenderT = tReal;
     const camDropTarget = game.dying && game.deathCause === 'fall' ? fallCamDrop(game.player.pos.y) : 0;
     this.camDropY += (camDropTarget - this.camDropY) * Math.min(1, dtR * 6);
     if (camDropTarget === 0 && this.camDropY < 0.5) this.camDropY = 0; // 收敛，免得永远拖个尾巴
@@ -641,6 +676,9 @@ export class Renderer {
       const scale = (PLAYER_H * 1.7) / SPRITE_CHAR_PX;
       const drawW = pSprite.width * scale;
       const drawH = pSprite.height * scale;
+      // 素材把杖与发画在头顶之上自由延伸，精灵的可见顶沿因此**高于物理盒**。
+      // 浮动反馈要生在它上方，得从这里取，不能让调用方再猜一个像素数。
+      this.spriteOverhangPx = Math.max(0, drawH - p.rect.h);
       ctx.save();
       ctx.translate(px + p.rect.w / 2, py + p.rect.h);
       if (p.facing === -1) ctx.scale(-1, 1);
@@ -796,7 +834,8 @@ export class Renderer {
         // 0.42 的压暗是按暗调结局图定的；邓林那几张是明亮的桃花逆光，死因、
         // 「弃其杖，化为邓林」与分享提示（皆 0.6 上下的暖白）压在花瓣上几乎读不出。
         // 结算页首先得让人看清自己走了多远，氛围让位于可读。
-        ctx.fillStyle = 'rgba(0,0,0,0.55)';
+        // 再抬一档：称号（辉光金 α.95）实测 4.03–4.43，是这一屏唯一的 major 边缘项。
+        ctx.fillStyle = 'rgba(0,0,0,0.60)';
       } else {
         ctx.fillStyle = 'rgba(0,0,0,0.6)';
       }

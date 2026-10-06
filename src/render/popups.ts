@@ -19,6 +19,12 @@ export class Popups {
     ctx.textAlign = 'center';
     ctx.textBaseline = 'alphabetic';
     ctx.font = font;
+    // 暗影托底。这一族原本是全场景唯一裸着画的字——HUD、题名、结算、教学提示
+    // 上一轮都配了底，唯独漏了这个文件，实拍四条浮动反馈全部判低对比
+    // （「+60」13.9px 压在树影与亮地交界、「+10 ×1.6」压在法杖上）。
+    // 与 HUD 用同一组值，不另造样式。
+    ctx.shadowColor = 'rgba(8,4,2,0.9)';
+    ctx.shadowBlur = 12;
     for (const p of this.list) {
       const k = p.age / p.life;
       const alpha = k < 0.15 ? k / 0.15 : 1 - (k - 0.15) / 0.85;
