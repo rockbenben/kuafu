@@ -4,7 +4,7 @@ import { loadAssets } from './render/assets';
 import { Particles } from './engine/particles';
 import { InputManager } from './engine/input';
 import { createLoop } from './engine/loop';
-import { drawUI, drawHelp, drawRotateHint, drawLangMenu, drawLangHint, langMenuHit, langMenuPanelHit, helpSoundHit, chipHit } from './render/ui';
+import { drawUI, drawHelp, drawRotateHint, drawLangMenu, drawLangHint, deadBarAtCorner, langMenuPanelHit, uiTargetAt, type UiTarget } from './render/ui';
 import { themeAt, rgb } from './render/theme';
 import { shareScore } from './share';
 import { Audio2 } from './engine/audio';
@@ -12,9 +12,9 @@ import { TouchControls } from './engine/touch';
 import { Store } from './game/storage';
 import { FX } from './render/fx';
 import { Popups } from './render/popups';
-import { t, setLocale, pickLocale, LOCALES, type Locale, type StringKey } from './render/strings';
+import { t, setLocale, pickLocale, resolveLocale, MESSAGES, LOCALES, type Locale, type StringKey } from './render/strings';
 import { loadAvatar, saveAvatar, clearAvatar, selectPreset, currentAvatarId, presetUrl, PRESETS } from './game/avatar';
-import { worldToClient, uiHeight, fitWorld, setSafeArea } from './render/viewport';
+import { worldToClient, uiHeight, uiInsetL, fitWorld, setSafeArea } from './render/viewport';
 import { MOTE_SCORE, DEATH_FADE } from './game/constants';
 import { dailySeed } from './game/generator';
 import { dangerLevel } from './game/darkness';
@@ -33,7 +33,10 @@ const avTip = document.getElementById('avtip');
 const avPick = document.getElementById('avpick');
 const avMore = document.getElementById('av-more');
 if (!canvas.getContext('2d')) {
-  document.body.innerHTML = '<p style="color:#ccc;text-align:center;margin-top:40vh">浏览器不支持 Canvas，请升级浏览器</p>';
+  // 这句必须能被非中文玩家读懂，而此时语种还没协商过——直接按浏览器语言查表取一句
+  // （同一个真源，不在这里另抄五种写法）。
+  const l = resolveLocale((navigator.languages ?? [navigator.language])[0]);
+  document.body.innerHTML = `<p style="color:#ccc;text-align:center;margin-top:40vh">${MESSAGES[l]['compat.noCanvas']}</p>`;
   throw new Error('Canvas 2D unsupported');
 }
 const game = new Game();
@@ -59,12 +62,29 @@ const picked = pickLocale({
   navigator: navigator.languages ?? [navigator.language],
 });
 setLocale(picked.locale);
+applyHtmlLang(picked.locale);
+/**
+ * 系统「减弱动效」偏好。CSS 侧只管得到 HTML 控件，而这一作的闪烁与脉动全在
+ * canvas 里（起始提示的呼吸、教学提示、大招就绪句），故由这里读一次、传进绘制层。
+ *
+ * 两条通道各管一半：`motionReduced` 进 UI 层（文字脉冲），`setAmbientFrozen` 进
+ * 世界层（光柱/日轮/浮尘/星子）。上一轮只接了前者，实拍量到开了偏好的标题页
+ * 两帧仍差 10.4%——用户按了系统开关，画面却照动不误。
+ */
+const motionQuery = typeof matchMedia === 'function' ? matchMedia('(prefers-reduced-motion: reduce)') : null;
+let motionReduced = motionQuery?.matches ?? false;
+renderer.setAmbientFrozen(motionReduced);
+motionQuery?.addEventListener?.('change', e => {
+  motionReduced = e.matches;
+  renderer.setAmbientFrozen(motionReduced);
+});
 // 首次见到的语种落盘，但**不**标记为亲选：
 //  - 有了它，从 /en/ 进来的人回到根 URL 仍是英文，不会掉回浏览器语言；
 //  - 不标亲选，所以它盖不过将来别人分享来的 /ja/，也随时可被菜单覆盖。
 // 已有值时绝不覆盖——那可能正是用户亲选的结果。
 if (!store.lang) store.lang = picked.locale;
 touch.applyLocale();
+applyChromeLocale();
 
 // ── 自定义形象 ──────────────────────────────────────────────
 // 内置素材原样存底："还原形象"要拿它换回来；不存底就只能重刷页面。
@@ -73,6 +93,13 @@ const stock = {
   jump: assets.playerJump, dash: assets.playerDash, frames: assets.playerRunFrames,
 };
 let avNoticeTimer = 0;
+/**
+ * 取景夹具把它置真：瞬态反馈（通知、失败红闪）不再自动还原。
+ *
+ * 上一轮实拍里 notice 两态**没有任何读数**——出图要等惰性素材批次，1.8 秒的
+ * setTimeout 早把字换回去了，拍到的是默认提示。钉住之后拍到的才是那一态。
+ */
+let noticePinned = false;
 
 /** 用一张图顶替跑/站/跳/冲四态；传 null 恢复内置素材。 */
 function applyAvatar(img: HTMLImageElement | null) {
@@ -116,6 +143,11 @@ function setAvOpen(on: boolean) {
   avBtn?.setAttribute('aria-expanded', on ? 'true' : 'false');
 }
 
+/** HTML 层里唯一一处写死的文字：源码链接。它对所有语种都显示，所以必须跟着切。 */
+function applyChromeLocale() {
+  if (ghLink) ghLink.textContent = t('github.label');
+}
+
 function applyAvatarLocale() {
   if (avLabel) avLabel.textContent = t('avatar.pick');
   if (avReset) {
@@ -140,7 +172,32 @@ function avNotice(key: StringKey) {
   if (!avLabel) return;
   avLabel.textContent = t(key);
   clearTimeout(avNoticeTimer);
+  if (noticePinned) return;          // 取景时钉住：见 `noticePinned`
   avNoticeTimer = setTimeout(applyAvatarLocale, 1800) as unknown as number;
+}
+
+let avFailTimer = 0;
+/**
+ * 读图失败：让那颗「＋」自己红一下。
+ *
+ * 原先这条也走 `avNotice`，即把换形象条的**名字**换成「这张图读不出来」——
+ * 而用户刚点的正是那颗钮，反馈却落在别处；1.8 秒后连字带色一起无声还原，
+ * 没看清的人只会觉得那行字闪了一下。改成就地报：边框 + 字形转红，
+ * 同时把失败句挂到那颗钮的可及名上（纯颜色的反馈对色盲与读屏都不算说话）。
+ */
+function avFailFlash() {
+  if (!avMore) return;
+  avMore.classList.add('fail');
+  avMore.setAttribute('aria-label', t('avatar.fail'));
+  avMore.setAttribute('title', t('avatar.fail'));
+  clearTimeout(avFailTimer);
+  if (noticePinned) return;
+  avFailTimer = setTimeout(applyAvatarLocale, 1800) as unknown as number;
+}
+
+function avFeedback(key: 'avatar.done' | 'avatar.fail') {
+  if (key === 'avatar.fail') avFailFlash();
+  else avNotice(key);
 }
 
 avFile?.addEventListener('change', async () => {
@@ -150,7 +207,7 @@ avFile?.addEventListener('change', async () => {
   applyAvatar(img);
   avFile.value = ''; // 清空才能再次选中同一个文件（change 不会重复触发）
   setAvOpen(false);
-  avNotice(img ? 'avatar.done' : 'avatar.fail');
+  avFeedback(img ? 'avatar.done' : 'avatar.fail');
 });
 // label 里的 <input hidden> 不吃键盘：Tab 停在 label 上按 Enter 什么也不发生
 avMore?.addEventListener('keydown', e => {
@@ -186,25 +243,35 @@ avReset?.addEventListener('keydown', e => {
 let avPlacedFor = '';
 function placeAvBar(state: string) {
   if (!avBar) return;
-  const key = `${innerWidth}x${innerHeight}:${state}`;
+  // 记忆键必须把「会不会换摆位」的输入都算进来：展开态、以及可见高。
+  // 只算窗口与屏名会漏掉一种真实情形——首帧时渲染层还没写过 uiHeight()，
+  // 那一步读到的是默认 576，角上规则被判成关；等真值到了，键没变，于是永不重算
+  // （实拍里只有英文那一格撞上，因为它的死屏状态落在第一次重排之前）。
+  const key = `${innerWidth}x${innerHeight}:${state}:${avBar.classList.contains('open') ? 'open' : 'fold'}:${uiHeight().toFixed(1)}`;
   if (key === avPlacedFor) return;
   avPlacedFor = key;
   const dead = state === 'dead';
+  // 短屏（裁过天空那一档，与 ui.ts 砍榜行数同一个判据）结算页中间那条带是两行
+  // 出口的：实测胶囊压在「点下半屏 · 再逐一程」上 100×14px，五语种全中。
+  // 所以那一档把整条让到左下角——右边是语言牌，中间留给出口。桌面/平板不裁天空，分毫不动。
+  const corner = dead && deadBarAtCorner();
   avBar.classList.toggle('anchor-bottom', dead);
+  avBar.classList.toggle('at-corner', corner);
   const worldY = uiHeight() * (dead ? 0.99 : 0.85);
   const vw = renderer.viewWidth;
+  const worldX = corner ? uiInsetL(16) : vw / 2;
   const rect = canvas.getBoundingClientRect();
-  const p = worldToClient(vw / 2, worldY, rect, canvas.width, canvas.height, vw);
+  const p = worldToClient(worldX, worldY, rect, canvas.width, canvas.height, vw);
   avBar.style.left = `${p.clientX}px`;
   avBar.style.top = `${p.clientY}px`;
   // 信箱化倍率：量两个相距 100 世界像素的点，屏幕上差多少。canvas 里的牌按它放大，
   // HTML 不跟着就会在大屏上显得越来越小——这颗是主功能键，不能比帮助牌还不起眼。
-  const p2 = worldToClient(vw / 2 + 100, worldY, rect, canvas.width, canvas.height, vw);
+  const p2 = worldToClient(worldX + 100, worldY, rect, canvas.width, canvas.height, vw);
   const uiScale = (p2.clientX - p.clientX) / 100;
-  // 结算页收一档：那屏满榜时展开只剩 3px 余量（实测），会贴着「按 R · 再逐一程」。
-  // 换形象在这一屏是次要动作，让位给成绩与出口。
-  // 系数要乘在钳位**之后**——大屏上 16*uiScale 早已顶到上限 28，改基数不起作用。
-  const px = Math.max(13, Math.min(28, 16 * uiScale)) * (dead ? 0.78 : 1);
+  // 结算页收一档：那屏满榜时最挤，换形象是次要动作，让位给成绩与出口。
+  // 地板必须挡在乘法**之后**——原先 13 的下限写在乘法前面，横持手机上 13×0.78=10.14，
+  // 实测主键 10.86px、还原形象 8.69px，把自家 12px 字号地板穿掉了。
+  const px = Math.max(12, Math.min(28, 16 * uiScale) * (dead ? 0.78 : 1));
   avBar.style.fontSize = `${px}px`;
 }
 
@@ -216,9 +283,21 @@ applyAvatar(await loadAvatar(store));
 const LANG_HINT_SEC = 4.2;
 let langHintLeft = picked.auto ? LANG_HINT_SEC : 0;
 
+/**
+ * 切语种必须同步 `<html lang>`：预渲染页各自带对了 lang，但客户端切语言时它一直
+ * 停在 zh-CN——读屏会用错发音引擎、浏览器会弹翻译提示、字体按中文栈回退。
+ * 取景夹具也走这里（它要哪个语种就是哪个语种）。
+ */
+function applyHtmlLang(l: Locale) {
+  const meta = LOCALES.find(x => x.id === l);
+  if (meta) document.documentElement.lang = meta.htmlLang;
+}
+
 function chooseLocale(l: Locale) {
   setLocale(l);
-  touch.applyLocale();      // 按钮上的字随语言走，否则帮助文案指认不了按钮
+  applyHtmlLang(l);
+  touch.applyLocale();
+  applyChromeLocale();      // 按钮上的字随语言走，否则帮助文案指认不了按钮
   applyAvatarLocale();
   store.lang = l;
   store.langPinned = true;  // 亲选：此后盖过 ?lang= 与别人分享来的路径语种
@@ -252,6 +331,52 @@ let helpOpen = false;
 let langMenuOpen = false;
 let sharing = false;
 let deadTapGuardUntil = 0; // 死亡瞬间起短暂锁触，防连点误触分享/重开、先看清成绩
+/**
+ * 死亡那一刻还按在屏上的手指。定时锁挡不住「在途的那一下」——实测 844×390 上
+ * 语言牌的命中区（外扩后 121.9×47）与刚收起的「跃」键重合 80×33px，连点跳跃的人
+ * 第二下往往落在 550ms 之后，正好把结算页当成「菜单怎么突然开了」。
+ * 判据改成「计时到 **且** 手指已抬起」：新按下去的一下才是有意的一下。
+ */
+const heldPointers = new Set<number>();
+const hold = (e: PointerEvent) => heldPointers.add(e.pointerId);
+const free = (e: PointerEvent) => heldPointers.delete(e.pointerId);
+addEventListener('pointerdown', hold);
+addEventListener('pointerup', free);
+addEventListener('pointercancel', free);
+
+/**
+ * 指针此刻落在哪枚画布控件上——hover 与 pressed 分开存。
+ *
+ * 上一轮实拍量到：四枚画布控件（两枚牌、声音钮、语言菜单行）的悬停帧与静止帧
+ * **PNG md5 逐字节相同**，而同屏的 DOM 控件与触屏虚拟键都会变。界面全画在
+ * canvas 里，DOM 上没有节点，浏览器不会替我们给指针反馈——这一对变量就是补上
+ * 的那一路。触屏没有 hover，只走 pressed；抬起清 pressed，指针离开画布两个都清。
+ */
+let uiHover: UiTarget | null = null;
+let uiPressed: UiTarget | null = null;
+/** 此刻屏上有哪些浮层/控件——悬停与点选共用，避免出现"亮这枚、开那枚"。 */
+const uiPresence = () => ({
+  state: game.state, langMenuOpen, helpOpen, coarse: coarse(),
+});
+const uiTargetAtPoint = (clientX: number, clientY: number) =>
+  uiTargetAt(renderer.screenToWorld(clientX, clientY), renderer.viewWidth, uiPresence());
+
+/** HUD、帮助浮层、语言菜单三处读**同一份**界面态，别各拼一份——拼三份就会有一份忘了带 hover。 */
+const uiChrome = () => ({
+  avatarOpen: !!avBar?.classList.contains('open'),
+  reduceMotion: motionReduced,
+  hover: uiHover,
+  pressed: uiPressed,
+});
+
+/**
+ * 浮动反馈的出生点：精灵**实际画出的**头顶上方，不是物理盒上沿。
+ *
+ * 素材把杖与发画在头顶之上自由延伸（见 renderer 的玩家本体一节），从盒上沿起升，
+ * 字一出生就压在法杖上——实拍里「+10 ×1.6」正穿过杖身。过冲量由渲染器报出来，
+ * 这里不再算第二遍缩放。`lift` 留给个别要更高的条目（背刺那句原本就多让 12）。
+ */
+const popupY = (p: { pos: { y: number } }, lift = 0) => p.pos.y - 6 - renderer.spriteOverhang + lift;
 let heartbeatT = 0;        // 长夜逼近的心跳计时（见主循环里的告警段）
 let knellPending = false;  // 死亡落幕音待触发（黑场转结局图那一沿只响一次）
 // 触屏设备（粗指针）：用于竖屏旋转提示
@@ -275,11 +400,18 @@ addEventListener('resize', syncSafeArea);
 addEventListener('orientationchange', syncSafeArea);
 document.addEventListener('fullscreenchange', syncSafeArea);
 
-const isCoarsePointer = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const deviceCoarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+/**
+ * 触屏态。真设备的粗指针是默认值；取景夹具（`?dp=&coarse=1`）可以在桌面上扮触屏，
+ * 好让触屏分支的文案、控制键与声音钮都能实拍——那半边屏幕靠肉眼在桌面上永远看不到。
+ */
+let coarseOverride: boolean | null = null;
+const coarse = () => coarseOverride ?? deviceCoarse;
 /** 浏览器是否真能进元素全屏。iPhone Safari 不实现（只有 <video> 有），那里不许这个诺。 */
 const CAN_FULLSCREEN = typeof document.documentElement.requestFullscreen === 'function';
 /** 竖持手机：旋转提示铺满整屏，此时任何浮层都看不见，不该被打开。 */
-const rotateHintUp = () => isCoarsePointer && innerHeight > innerWidth * 1.1;
+let rotateHintSuppressed = false;
+const rotateHintUp = () => !rotateHintSuppressed && coarse() && innerHeight > innerWidth * 1.1;
 
 /**
  * 移动端全屏。地址栏 + 底部导航栏吃掉近 1/5 的屏，横持时那一截正是跑道。
@@ -290,7 +422,7 @@ const rotateHintUp = () => isCoarsePointer && innerHeight > innerWidth * 1.1;
  * 失败、退回非全屏，属预期；iPhone 的唯一全屏路径是「添加到主屏幕」。
  */
 function goFullscreen() {
-  if (!isCoarsePointer || document.fullscreenElement) return;
+  if (!coarse() || document.fullscreenElement) return;
   // 全屏 documentElement 而非 canvas：触屏控制键（#tc）在 canvas 之外，
   // 只全屏 canvas 会把它们一起挡在屏外。
   void document.documentElement.requestFullscreen?.().then(() => {
@@ -317,7 +449,7 @@ function doShare() {
     sharing = false;
     if (r === 'copied') {
       const p = game.player;
-      popups.spawn(p.pos.x + p.rect.w / 2, p.pos.y - 6, t('share.copied'), rgb([255, 220, 150], 1), 2.4);
+      popups.spawn(p.pos.x + p.rect.w / 2, popupY(p), t('share.copied'), rgb([255, 220, 150], 1), 2.4);
     }
   });
 }
@@ -356,7 +488,7 @@ window.addEventListener('keydown', e => {
     konamiBuf.length = 0;
     audio.charged();
     const p = game.player;
-    popups.spawn(p.pos.x + p.rect.w / 2, p.pos.y - 6, t(cheatInfiniteUlt ? 'cheat.on' : 'cheat.off'), rgb([255, 220, 150], 1), 2.2);
+    popups.spawn(p.pos.x + p.rect.w / 2, popupY(p), t(cheatInfiniteUlt ? 'cheat.on' : 'cheat.off'), rgb([255, 220, 150], 1), 2.2);
     if (cheatInfiniteUlt && game.state === 'playing') game.charge = 1;
   }
   // 语言菜单优先吃掉按键：T / Esc 关闭，1~5 选定
@@ -424,8 +556,8 @@ canvas.addEventListener('pointerdown', e => {
 
   // ── 2. 语言菜单 ──
   if (langMenuOpen) {
-    const hit = langMenuHit(fx, fy);
-    if (hit) { chooseLocale(hit); return; }
+    const hit = uiTargetAt(world, vw, uiPresence());
+    if (hit?.id === 'langRow') { uiPressed = hit; chooseLocale(LOCALES[hit.index].id); return; }
     // 点面板自身（标题、笔意线、内边距）不算"点外面"——提示写的就是"点屏幕别处"
     if (langMenuPanelHit(fx, fy)) return;
     langMenuOpen = false;
@@ -434,7 +566,9 @@ canvas.addEventListener('pointerdown', e => {
 
   // ── 3. 帮助浮层（鼠标同样要能关，否则点开就出不来）──
   if (helpOpen) {
-    if (isCoarsePointer && helpSoundHit(world.x, world.y, vw)) {
+    const hit = uiTargetAt(world, vw, uiPresence());
+    if (hit?.id === 'sound') {
+      uiPressed = hit;
       store.muted = audio.toggleMute();
       return;
     }
@@ -445,15 +579,18 @@ canvas.addEventListener('pointerdown', e => {
   // ── 4. 死亡锁触：死亡瞬间吞掉一切点击，**含牌子** ──
   // 横屏下语言牌与触屏跳跃键有约 47×12 CSS px 的重叠，玩家连点跳跃时死亡，
   // 下一下反射性点击正落在牌上；若不吞掉，分数还没看清菜单就盖上来了。
-  if (game.state === 'dead' && performance.now() < deadTapGuardUntil) return;
+  if (game.state === 'dead' && (performance.now() < deadTapGuardUntil || heldPointers.size)) return;
 
   // ── 5. 两枚牌（鼠标也要能点）──
   if (game.state === 'title' || game.state === 'dead') {
-    if (chipHit('right', world.x, world.y, vw)) {
+    const hit = uiTargetAt(world, vw, uiPresence());
+    if (hit?.id === 'chipR') {
+      uiPressed = hit;
       audio.unlock(); langMenuOpen = true; return;
     }
-    // 帮助牌只画在标题页，故也只在标题页命中
-    if (game.state === 'title' && chipHit('left', world.x, world.y, vw)) {
+    // 帮助牌只画在标题页，故也只在标题页命中（uiTargetAt 里同一份判据）
+    if (hit?.id === 'chipL') {
+      uiPressed = hit;
       audio.unlock(); helpOpen = true; return;
     }
   }
@@ -480,14 +617,29 @@ canvas.addEventListener('pointerdown', e => {
   }
 });
 
+// 指针反馈只走鼠标：触屏没有悬停这回事，把 touch 的 move 当 hover 会让手指按过的
+// 地方一路亮下去，抬起之后还钉在那儿。
+canvas.addEventListener('pointermove', e => {
+  if (e.pointerType !== 'mouse') return;
+  uiHover = uiTargetAtPoint(e.clientX, e.clientY);
+  // 光标也跟着变：全仓库原本只有三处 DOM 样式写过 cursor:pointer，
+  // 画布上的可点东西连"手型"这一层信号都没有。
+  canvas.style.cursor = uiHover ? 'pointer' : '';
+});
+const uiClearPointer = () => { uiPressed = null; };
+const uiLeave = () => { uiHover = null; uiPressed = null; canvas.style.cursor = ''; };
+addEventListener('pointerup', uiClearPointer);
+addEventListener('pointercancel', uiClearPointer);
+canvas.addEventListener('pointerleave', uiLeave);
+
 /** 画一帧：世界 + 信箱化 UI 层。与逻辑更新解耦，故可被单独驱动（审查/截图）。 */
 function drawFrame() {
   renderer.render(game, particles, fx.camera(), popups);
   renderer.renderUI(ctx => {
     const theme = themeAt(game.score.distanceM);
-    drawUI(ctx, game, theme, best, board, renderer.viewWidth, isCoarsePointer);
-    if (helpOpen) drawHelp(ctx, theme, renderer.viewWidth, audio.muted, isCoarsePointer);
-    if (langMenuOpen) drawLangMenu(ctx, theme, renderer.viewWidth, isCoarsePointer);
+    drawUI(ctx, game, theme, best, board, renderer.viewWidth, coarse(), uiChrome());
+    if (helpOpen) drawHelp(ctx, theme, renderer.viewWidth, audio.muted, coarse(), uiChrome());
+    if (langMenuOpen) drawLangMenu(ctx, theme, renderer.viewWidth, coarse(), uiChrome());
     // 首次自动选定语种的提示：仅标题页、菜单未开时，末段淡出
     if (langHintLeft > 0 && game.state === 'title' && !langMenuOpen && !helpOpen && !rotateHintUp()) {
       drawLangHint(ctx, theme, renderer.viewWidth, Math.min(1, langHintLeft / 1.2));
@@ -495,7 +647,7 @@ function drawFrame() {
     // 触屏竖持：提示旋转横屏——铺满整屏（重置为设备像素空间，避开世界视口信箱化）
     // 尺寸取画布盒子而非窗口，与 renderer 算后备缓冲的口径一致；两者在手机上会
     // 不一致（dvh vs innerHeight），按窗口铺就盖不满自己这张画布。
-    if (isCoarsePointer && innerHeight > innerWidth * 1.1) {
+    if (rotateHintUp()) {
       ctx.save();
       const d = Math.min(devicePixelRatio || 1, 2);
       ctx.setTransform(d, 0, 0, d, 0, 0);
@@ -536,6 +688,37 @@ function drawDiag() {
   ctx.fillStyle = '#7CFC9A';
   ctx.fillText(line, 6 * dpr, 14 * dpr);
   ctx.restore();
+}
+
+/** 一帧的全部呈现：HTML 覆盖层的开关 + canvas 世界与 UI。与逻辑更新解耦，故可被单独驱动（审查/截图）。 */
+/**
+ * 一帧的全部呈现：HTML 覆盖层的显隐、触屏层、再画 canvas 世界与 UI。
+ * 主循环与取景夹具共用这一个入口——夹具若只调 drawFrame，DOM 那半边就停在
+ * 停摆前最后一帧的状态上（触屏控制键因此一次也没出现过）。
+ */
+function presentFrame() {
+  // 竖持时旋转提示铺满整屏、遮蔽一切，源码链接不该还浮在它上面
+  // 浮层与展开态一律让位：它是 HTML，压在 canvas 的浮层之上。
+  // DEVELOPMENT.md 写着「新增任何 HTML 覆盖层都照抄那一行」——这行恰恰漏抄了
+  // !helpOpen / !langMenuOpen，实测韩文帮助浮层的关闭行被它压住 122×3px。
+  if (ghLink) {
+    ghLink.style.display = game.state === 'title' && !rotateHintUp()
+      && !helpOpen && !langMenuOpen && !avBar?.classList.contains('open') ? 'block' : 'none';
+  }
+  // 结算页也给换形象入口：那是玩家看着自己成绩、最想换个人再来一局的时刻。
+  // 但它是 HTML（z-index 10），会压在 canvas 画的帮助浮层/语言菜单/旋转提示之上——
+  // 那三者一起时必须让位，否则一排形象圆就叠在浮层文字上。同 touch.setVisible 的守卫。
+  // 死亡定格回放期间也不上：那几百毫秒是留给「看清自己怎么死的」，
+  // 一排形象圆浮在死亡现场上只会抢走注意力
+  const avOn = (game.state === 'title' || (game.state === 'dead' && !game.dying))
+    && !helpOpen && !langMenuOpen && !rotateHintUp();
+  avBar?.classList.toggle('on', avOn);
+  if (avOn) placeAvBar(game.state);
+  else if (avBar?.classList.contains('open')) setAvOpen(false);
+  // 触屏控制层：仅触屏设备游玩（且未开帮助）时显示；神力满时亮"跨"大招键
+  touch.setVisible(coarse() && game.state === 'playing' && !helpOpen && !langMenuOpen);
+  touch.setUltReady(game.state === 'playing' && game.chargeReady);
+  drawFrame();
 }
 
 const loop = createLoop(
@@ -582,14 +765,14 @@ const loop = createLoop(
       particles.spawn(cx, cy - 14, { color: rgb(theme.glow), count: 10, spread: 100, life: 0.5 });
       audio.mote();
       // 清晰展现作用：+分数 与 当前倍率一起浮现
-      popups.spawn(cx, p.pos.y - 6, `+${MOTE_SCORE}  ×${game.score.multiplier.toFixed(1)}`, rgb(theme.glow, 1), 1.1);
+      popups.spawn(cx, popupY(p), `+${MOTE_SCORE}  ×${game.score.multiplier.toFixed(1)}`, rgb(theme.glow, 1), 1.1);
     }
     if (game.justCollectedCrystal) {
       // 掬饮甘泉：水花四溅
       particles.spawn(cx, cy - 14, { color: 'rgba(150,205,255,0.95)', count: 14, spread: 130, life: 0.5 });
       audio.crystal();
       fx.addShake(0.2);
-      popups.spawn(cx, p.pos.y - 6, t('pop.water'), 'rgba(170,215,255,1)', 1.0);
+      popups.spawn(cx, popupY(p), t('pop.water'), 'rgba(170,215,255,1)', 1.0);
     }
     if (game.justKilledEnemy) {
       particles.spawn(cx, cy, { color: 'rgba(255,235,200,0.98)', count: 22, spread: 210, life: 0.55 });
@@ -602,15 +785,15 @@ const loop = createLoop(
       fx.punch(0.12 + 0.06 * k);         // 特写：镜头瞬间拉近
       // 飘的数必须是**这一次真加的**分：跨步走 STRIDE_KILL_BONUS、背刺走
       // BACKSTAB_BONUS，两者都不进连杀。统一由 game 报出来，别在这里猜。
-      popups.spawn(cx, p.pos.y - 6, `+${game.lastKillBonus}`, 'rgba(255,210,140,1)', 1.0);
+      popups.spawn(cx, popupY(p), `+${game.lastKillBonus}`, 'rgba(255,210,140,1)', 1.0);
     }
     if (game.justBounced) {
       fx.addShake(0.35);
       fx.hitstop(0.05);
-      popups.spawn(cx, p.pos.y - 6, t('pop.bounce'), 'rgba(190,190,200,1)', 1.0);
+      popups.spawn(cx, popupY(p), t('pop.bounce'), 'rgba(190,190,200,1)', 1.0);
     }
     if (game.justBackstabbed) {
-      popups.spawn(cx, p.pos.y - 18, t('pop.backstab'), 'rgba(255,232,170,1)', 1.2);
+      popups.spawn(cx, popupY(p, -12), t('pop.backstab'), 'rgba(255,232,170,1)', 1.2);
     }
     if (game.justStrided) {
       particles.spawn(cx, cy - 14, { color: rgb(theme.glow, 1), count: 34, spread: 280, life: 0.6 });
@@ -618,7 +801,7 @@ const loop = createLoop(
       fx.addShake(0.7);
       fx.triggerFlash(0.55);
       fx.punch(0.1);
-      popups.spawn(cx, p.pos.y - 6, t('pop.stride'), rgb(theme.glow, 1), 1.3);
+      popups.spawn(cx, popupY(p), t('pop.stride'), rgb(theme.glow, 1), 1.3);
     }
     if (wasChargeReady !== game.chargeReady && game.chargeReady) audio.charged(); // 刚充满神力
     wasChargeReady = game.chargeReady;
@@ -647,26 +830,53 @@ const loop = createLoop(
     particles.update(dt);
     popups.update(dt);
   },
-  () => {
-    // 竖持时旋转提示铺满整屏、遮蔽一切，源码链接不该还浮在它上面
-    if (ghLink) ghLink.style.display = game.state === 'title' && !rotateHintUp() ? 'block' : 'none';
-    // 结算页也给换形象入口：那是玩家看着自己成绩、最想换个人再来一局的时刻。
-    // 但它是 HTML（z-index 10），会压在 canvas 画的帮助浮层/语言菜单/旋转提示之上——
-    // 那三者一起时必须让位，否则一排形象圆就叠在浮层文字上。同 touch.setVisible 的守卫。
-    // 死亡定格回放期间也不上：那几百毫秒是留给「看清自己怎么死的」，
-    // 一排形象圆浮在死亡现场上只会抢走注意力
-    const avOn = (game.state === 'title' || (game.state === 'dead' && !game.dying))
-      && !helpOpen && !langMenuOpen && !rotateHintUp();
-    avBar?.classList.toggle('on', avOn);
-    if (avOn) placeAvBar(game.state);
-    else if (avBar?.classList.contains('open')) setAvOpen(false);
-    // 触屏控制层：仅触屏设备游玩（且未开帮助）时显示；神力满时亮"跨"大招键
-    touch.setVisible(isCoarsePointer && game.state === 'playing' && !helpOpen && !langMenuOpen);
-    touch.setUltReady(game.state === 'playing' && game.chargeReady);
-    drawFrame();
-  },
+  presentFrame,
 );
 loop.start();
+
+/**
+ * DEV 取景夹具（`?dp=<屏名>`）。`import.meta.env.DEV` 排在最前，生产构建把它替成
+ * false 后整块连同动态 import 一起裁掉——dist 产物里 grep 不到夹具（守卫在
+ * tests/dp-fixture.test.ts）。它停掉主循环、把局内状态摆到指定那一屏，并交出
+ * `window.__dp.shoot()`：一帧里落下的每个字、字号、颜色与当帧变换。
+ * 夹具态不写存档、不出声，见 src/dev/dp.ts 的三道闸。
+ */
+if (import.meta.env.DEV) {
+  const dpq = new URLSearchParams(location.search);
+  if (dpq.get('dp')) {
+    const { installDp } = await import('./dev/dp');
+    const dp = await installDp(dpq, {
+      game, renderer, assets, store, audio, board, canvas, loop, presentFrame,
+      setCoarse: (on) => { coarseOverride = on; },
+      setOverlay: (o) => { helpOpen = o === 'help'; langMenuOpen = o === 'lang'; },
+      setAvOpen,
+      setHintSuppressed: (on: boolean) => { rotateHintSuppressed = on; },
+      setBest: (v) => { best = v; },
+      setLangHint: (on) => { langHintLeft = on ? LANG_HINT_SEC : 0; },
+      spawnPopup: (text) => {
+        const p = game.player;
+        // 用真寿命（1.1s）而不是无限：飘字在前 15% 是淡入，age=0 时 alpha=0，
+        // 拿 999 秒寿命去取景会拍到一条完全透明的字。推进到淡入刚结束那一瞬。
+        popups.spawn(p.pos.x + p.rect.w / 2, popupY(p), text, rgb(themeAt(game.score.distanceM).glow, 1), 1.1);
+        popups.update(0.17);
+      },
+      setNotice: (key) => { noticePinned = true; avFeedback(key); },
+      forceLocale: (l) => { setLocale(l); applyHtmlLang(l); touch.applyLocale(); applyAvatarLocale(); applyChromeLocale(); },
+    });
+    // 主循环已停：活格子里点完牌子/换了窗口要显式重绘一帧，否则界面看着像死的。
+    // 冒泡阶段而非捕获——必须在 canvas 自己的分派跑完之后。
+    if (dp) {
+      // 一律用 dp.redraw() 而不是 dp.draw(performance.now())：事件后按真实时间重绘会把
+      // 世界解冻到另一相位，配对帧量到的差就全成了时间漂移（悬停取证因此必须冻在同一刻）。
+      addEventListener('pointerdown', () => dp.redraw());
+      // 悬停也要重绘：主循环停着，不补这一笔的话"移过去"根本不会上屏，
+      // 配对帧实拍就会永远量到 0% 变化——把仪器自己的哑当成界面的错。
+      addEventListener('pointermove', () => dp.redraw());
+      addEventListener('pointerup', () => dp.redraw());
+      addEventListener('resize', () => dp.redraw());
+    }
+  }
+}
 
 // 开发热更新时释放音频上下文，避免旧乐床叠加（多重嘈杂背景音）
 const hot = (import.meta as { hot?: { dispose(cb: () => void): void } }).hot;
